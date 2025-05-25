@@ -40,7 +40,7 @@ const Header = () => {
 	];
 
 	const pooItems = [
-		{ title: "poo", to: "/poo", description: "Some Poo" },
+		{ title: "photos", to: "/photos", description: "Some Photos" },
 		{ title: "Poo nanu", to: "/poo/nanu", description: "The Nanu" },
 	];
 
