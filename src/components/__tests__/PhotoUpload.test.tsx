@@ -1,86 +1,35 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import PhotoUpload from "../PhotoUpload";
 import { vi } from "vitest";
-import type { MutationOptions } from "@tanstack/react-query";
-import type { Photo } from "@/lib/indexeddb"; // Assuming Photo type is exported
+import PhotoUpload from "../PhotoUpload";
+// No longer need Photo type from indexeddb directly here if addPhotoServerFn schema is source of truth
 
-// Store mutation options to be called in tests
-// Define a more specific type for mutationOptions
-// Omit<Photo, 'id'> is the type for newPhotoData, number is the expected return from addPhoto (photoId)
-let mutationOptions: MutationOptions<
-	number,
-	Error,
-	Omit<Photo, "id">,
-	unknown
-> | null;
-
-const mockMutate = vi.fn((variables: Omit<Photo, "id">) => {
-	// Simulate async behavior and then call onSuccess or onError based on test needs
-	if (mutationOptions?.mutationFn) {
-		// Apply optional chaining here
-		mutationOptions
-			.mutationFn(variables)
-			.then(
-				(
-					data: number, // data is photoId, which is a number
-				) => mutationOptions.onSuccess?.(data, variables, undefined),
-			)
-			.catch(
-				(
-					error: Error, // error should be of type Error
-				) => mutationOptions.onError?.(error, variables, undefined),
-			);
-	}
-});
-const mockInvalidateQueries = vi.fn();
-let mockIsPending = false;
-
-vi.mock("@tanstack/react-query", async (importOriginal) => {
-	const original =
-		await importOriginal<typeof import("@tanstack/react-query")>();
-	return {
-		...original,
-		useMutation: vi.fn((options) => {
-			mutationOptions = options; // Store options
-			return {
-				mutate: mockMutate,
-				isPending: mockIsPending,
-			};
-		}),
-		useQueryClient: vi.fn(() => ({
-			invalidateQueries: mockInvalidateQueries,
-		})),
-	};
-});
-
-const mockAddPhoto = vi.fn();
-vi.mock("@/lib/indexeddb", () => ({
-	// Ensure this path matches your project structure
-	addPhoto: mockAddPhoto,
+// Mock the server actions module
+const mockAddPhotoServerFn = vi.fn();
+vi.mock("@/server/photoActions", () => ({
+	addPhotoServerFn: mockAddPhotoServerFn,
 }));
 
+import type { RouterHistory } from "@tanstack/react-router"; // Using a relevant type from the library
+
+// Mock router passed as a prop
+const mockRouterInvalidate = vi.fn();
+// Define a minimal type for the mocked router
+interface MockRouter {
+	invalidate: ReturnType<typeof vi.fn>;
+	history?: Partial<RouterHistory>; // Optional, add if needed
+}
+const mockRouter: MockRouter = {
+	invalidate: mockRouterInvalidate,
+};
+
 const renderPhotoUpload = () => {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				retry: false, // Important for tests to prevent retries from masking issues
-			},
-		},
-	});
-	return render(
-		<QueryClientProvider client={queryClient}>
-			<PhotoUpload />
-		</QueryClientProvider>,
-	);
+	return render(<PhotoUpload router={mockRouter} />);
 };
 
 describe("PhotoUpload Component", () => {
 	beforeEach(() => {
-		vi.clearAllMocks(); // Clears all mocks, including call counts and stored options
-		mockIsPending = false;
-		mutationOptions = null; // Reset stored mutation options
+		vi.clearAllMocks();
 	});
 
 	test("renders initial state correctly", () => {
@@ -102,7 +51,8 @@ describe("PhotoUpload Component", () => {
 	});
 
 	test("handles successful photo upload", async () => {
-		mockAddPhoto.mockResolvedValue(123); // Simulate addPhoto resolving successfully
+		const newPhotoId = "photo-id-123";
+		mockAddPhotoServerFn.mockResolvedValue(newPhotoId);
 
 		renderPhotoUpload();
 		const fileInput = screen.getByLabelText(
@@ -114,39 +64,40 @@ describe("PhotoUpload Component", () => {
 		fireEvent.change(fileInput, { target: { files: [file] } });
 		fireEvent.click(uploadButton);
 
-		await waitFor(() => {
-			expect(mockMutate).toHaveBeenCalledTimes(1);
-			// FileReader adds 'data:image/png;base64,...'
-			// For simplicity, we check name and type. A more robust test might check data format.
-			expect(mockMutate).toHaveBeenCalledWith(
-				expect.objectContaining({
-					name: "test.png",
-					type: "image/png",
-					data: expect.any(String), // FileReader will produce a base64 string
-				}),
-			);
-		});
-
-		// Check that addPhoto was called by the mutationFn
-		await waitFor(() => {
-			expect(mockAddPhoto).toHaveBeenCalledTimes(1);
-		});
+		// Check for uploading state
+		expect(uploadButton).toBeDisabled();
+		expect(screen.getByText(/uploading.../i)).toBeInTheDocument();
+		expect(fileInput).toBeDisabled();
 
 		await waitFor(() => {
-			expect(mockInvalidateQueries).toHaveBeenCalledWith({
-				queryKey: ["photos"],
+			expect(mockAddPhotoServerFn).toHaveBeenCalledTimes(1);
+			expect(mockAddPhotoServerFn).toHaveBeenCalledWith({
+				name: "test.png",
+				type: "image/png",
+				data: expect.stringContaining("data:image/png;base64,"), // FileReader produces base64
 			});
+		});
+
+		await waitFor(() => {
+			expect(mockRouterInvalidate).toHaveBeenCalledTimes(1);
 			expect(
-				screen.getByText(/photo "test.png" uploaded successfully! id: 123/i),
+				screen.getByText(
+					new RegExp(
+						`photo "test.png" uploaded successfully! id: ${newPhotoId}`,
+						"i",
+					),
+				),
 			).toBeInTheDocument();
-			expect(fileInput.files?.length).toBe(0);
-			expect(uploadButton).toBeDisabled(); // Should be disabled after successful upload & input clear
+			expect(fileInput.files?.length).toBe(0); // File input should be cleared
+			// Button should be enabled but disabled because no file is selected
+			expect(uploadButton).toBeDisabled();
+			expect(screen.queryByText(/uploading.../i)).not.toBeInTheDocument(); // Uploading text gone
 		});
 	});
 
 	test("handles failed photo upload", async () => {
-		const errorMessage = "Failed to save photo";
-		mockAddPhoto.mockRejectedValue(new Error(errorMessage)); // Simulate addPhoto rejecting
+		const errorMessage = "Upload failed miserably";
+		mockAddPhotoServerFn.mockRejectedValue(new Error(errorMessage));
 
 		renderPhotoUpload();
 		const fileInput = screen.getByLabelText(/select image file/i);
@@ -158,19 +109,12 @@ describe("PhotoUpload Component", () => {
 		fireEvent.change(fileInput, { target: { files: [file] } });
 		fireEvent.click(uploadButton);
 
-		await waitFor(() => {
-			expect(mockMutate).toHaveBeenCalledTimes(1);
-			expect(mockMutate).toHaveBeenCalledWith(
-				expect.objectContaining({
-					name: "error.jpg",
-					type: "image/jpeg",
-				}),
-			);
-		});
+		// Check for uploading state
+		expect(uploadButton).toBeDisabled();
+		expect(screen.getByText(/uploading.../i)).toBeInTheDocument();
 
-		// Check that addPhoto was called by the mutationFn
 		await waitFor(() => {
-			expect(mockAddPhoto).toHaveBeenCalledTimes(1);
+			expect(mockAddPhotoServerFn).toHaveBeenCalledTimes(1);
 		});
 
 		await waitFor(() => {
@@ -179,34 +123,53 @@ describe("PhotoUpload Component", () => {
 					new RegExp(`error uploading photo: ${errorMessage}`, "i"),
 				),
 			).toBeInTheDocument();
-			expect(mockInvalidateQueries).not.toHaveBeenCalled();
+			expect(mockRouterInvalidate).not.toHaveBeenCalled();
+			// Button should be enabled as upload finished (though failed) and file still selected
+			expect(uploadButton).not.toBeDisabled();
+			expect(screen.queryByText(/uploading.../i)).not.toBeInTheDocument();
 		});
 	});
 
-	test("shows uploading state when mutation is pending", async () => {
-		mockIsPending = true; // Set pending state for this test
-		// For this test, mockMutate will not resolve or reject, simulating a pending state.
-		mockMutate.mockImplementationOnce(() => new Promise(() => {}));
+	test("shows uploading state correctly during upload process", async () => {
+		// Use a promise that doesn't resolve immediately to keep it in pending state
+		let resolveUpload: (value: string) => void = () => {};
+		const uploadPromise = new Promise<string>((resolve) => {
+			resolveUpload = resolve;
+		});
+		mockAddPhotoServerFn.mockReturnValue(uploadPromise);
 
 		renderPhotoUpload();
 		const fileInput = screen.getByLabelText(
 			/select image file/i,
 		) as HTMLInputElement;
-		const uploadButton = screen.getByRole("button", { name: /uploading.../i });
+		const uploadButton = screen.getByRole("button", { name: /upload photo/i });
 		const file = new File(["(⌐□_□)"], "pending.png", { type: "image/png" });
 
 		fireEvent.change(fileInput, { target: { files: [file] } });
 		expect(uploadButton).not.toBeDisabled(); // Enabled after file select
 
-		fireEvent.click(uploadButton);
+		fireEvent.click(uploadButton); // Start the upload
 
+		// Check that UI updates to "Uploading..." and button is disabled
 		await waitFor(() => {
-			expect(uploadButton).toBeDisabled(); // Disabled because isPending is true
 			expect(screen.getByText(/uploading.../i)).toBeInTheDocument();
+			expect(uploadButton).toBeDisabled();
+			expect(uploadButton).toHaveAttribute("aria-busy", "true");
 			expect(fileInput).toBeDisabled();
 		});
 
-		// Ensure mutate was called even in pending state
-		expect(mockMutate).toHaveBeenCalledTimes(1);
+		// Ensure addPhotoServerFn was called
+		expect(mockAddPhotoServerFn).toHaveBeenCalledTimes(1);
+
+		// Now resolve the promise to simulate completion
+		resolveUpload("some-id");
+
+		// Check that "Uploading..." text is gone and button is re-enabled (but disabled due to no file)
+		await waitFor(() => {
+			expect(screen.queryByText(/uploading.../i)).not.toBeInTheDocument();
+			expect(uploadButton).toBeDisabled(); // Disabled because file input is cleared
+			expect(uploadButton).not.toHaveAttribute("aria-busy"); // aria-busy removed
+			expect(fileInput).not.toBeDisabled(); // File input re-enabled
+		});
 	});
 });

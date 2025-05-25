@@ -1,49 +1,31 @@
-/**
- * @file PhotoUpload component for selecting and uploading photos to IndexedDB.
- */
-import type React from "react";
-import { useState, type ChangeEvent, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { addPhoto, type Photo } from "../lib/indexeddb";
+// Photo type from indexeddb is not explicitly needed if addPhotoServerFn infers from Zod
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { addPhotoServerFn } from "@/server/photoActions";
+import type { useRouter } from "@tanstack/react-router"; // For router prop type
+/**
+ * @file PhotoUpload component for selecting and uploading photos.
+ */
+import type React from "react";
+import { type ChangeEvent, useRef, useState } from "react";
+
+interface PhotoUploadProps {
+	router: ReturnType<typeof useRouter>;
+}
 
 /**
  * PhotoUpload component allows users to select an image file and upload it.
- * It handles file reading, interaction with IndexedDB, and displays loading/status messages.
+ * It handles file reading, uses server functions for uploading, and displays loading/status messages.
  */
-const PhotoUpload: React.FC = () => {
+const PhotoUpload: React.FC<PhotoUploadProps> = ({ router }) => {
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
 	const [uploadStatus, setUploadStatus] = useState<{
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
+	const [isUploading, setIsUploading] = useState<boolean>(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const queryClient = useQueryClient();
-
-	const photoUploadMutation = useMutation({
-		mutationFn: async (newPhotoData: Omit<Photo, "id">) => {
-			return addPhoto(newPhotoData);
-		},
-		onSuccess: (data, variables) => {
-			queryClient.invalidateQueries({ queryKey: ["photos"] });
-			setUploadStatus({
-				type: "success",
-				message: `Photo "${variables.name}" uploaded successfully! ID: ${data}`,
-			});
-			setSelectedFile(null);
-			if (fileInputRef.current) {
-				fileInputRef.current.value = "";
-			}
-		},
-		onError: (error: Error) => {
-			setUploadStatus({
-				type: "error",
-				message: `Error uploading photo: ${error.message}`,
-			});
-		},
-	});
 
 	/**
 	 * Handles the change event of the file input.
@@ -60,7 +42,7 @@ const PhotoUpload: React.FC = () => {
 	};
 
 	const triggerUpload = async () => {
-		if (!selectedFile || photoUploadMutation.isPending) {
+		if (!selectedFile || isUploading) {
 			if (!selectedFile) {
 				setUploadStatus({
 					type: "error",
@@ -71,6 +53,7 @@ const PhotoUpload: React.FC = () => {
 		}
 
 		setUploadStatus(null); // Clear previous messages
+		setIsUploading(true);
 
 		const reader = new FileReader();
 		reader.onload = async (event) => {
@@ -84,13 +67,27 @@ const PhotoUpload: React.FC = () => {
 					type: selectedFile.type,
 					data: base64Data,
 				};
-				photoUploadMutation.mutate(photoDetailsToUpload);
+
+				// Directly call the server function
+				const newPhotoId = await addPhotoServerFn(photoDetailsToUpload);
+
+				router.invalidate(); // Invalidate router cache to refetch photos
+				setUploadStatus({
+					type: "success",
+					message: `Photo "${selectedFile.name}" uploaded successfully! ID: ${newPhotoId}`,
+				});
+				setSelectedFile(null);
+				if (fileInputRef.current) {
+					fileInputRef.current.value = "";
+				}
 			} catch (error) {
-				console.error("File reading error:", error);
+				console.error("Upload error:", error);
 				setUploadStatus({
 					type: "error",
-					message: `Error processing file: ${error instanceof Error ? error.message : String(error)}`,
+					message: `Error uploading photo: ${error instanceof Error ? error.message : String(error)}`,
 				});
+			} finally {
+				setIsUploading(false);
 			}
 		};
 		reader.onerror = () => {
@@ -99,6 +96,7 @@ const PhotoUpload: React.FC = () => {
 				type: "error",
 				message: `Error reading file: ${reader.error?.message || "Unknown error"}`,
 			});
+			setIsUploading(false); // Also set isUploading to false on reader error
 		};
 		reader.readAsDataURL(selectedFile);
 	};
@@ -121,28 +119,27 @@ const PhotoUpload: React.FC = () => {
 					type="file"
 					accept="image/*"
 					onChange={handleFileChange}
-					disabled={photoUploadMutation.isPending}
+					disabled={isUploading}
 					className="file:text-primary-foreground file:bg-primary hover:file:bg-primary/90"
 				/>
 			</div>
 			<Button
 				onClick={triggerUpload}
-				disabled={!selectedFile || photoUploadMutation.isPending}
+				disabled={!selectedFile || isUploading}
 				className="w-full transition-all duration-150 ease-in-out"
-				variant={photoUploadMutation.isPending ? "outline" : "default"}
+				variant={isUploading ? "outline" : "default"}
+				aria-busy={isUploading}
 			>
-				{photoUploadMutation.isPending ? (
+				{isUploading ? (
 					<>
 						<svg
 							className="animate-spin -ml-1 mr-3 h-5 w-5 text-primary"
 							xmlns="http://www.w3.org/2000/svg"
 							fill="none"
 							viewBox="0 0 24 24"
-							role="status" // Indicates the SVG is conveying a status
-							aria-live="polite" // Announces changes to screen readers
+							aria-hidden="true" // Decorative, as button has text and aria-busy
 						>
-							<title>Loading animation</title>{" "}
-							{/* Accessible name for the SVG */}
+							<title>Loading animation</title>
 							<circle
 								className="opacity-25"
 								cx="12"
@@ -150,14 +147,12 @@ const PhotoUpload: React.FC = () => {
 								r="10"
 								stroke="currentColor"
 								strokeWidth="4"
-							/>{" "}
-							{/* Already self-closed by previous lint run */}
+							/>
 							<path
 								className="opacity-75"
 								fill="currentColor"
 								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-							/>{" "}
-							{/* Already self-closed by previous lint run */}
+							/>
 						</svg>
 						Uploading...
 					</>
@@ -171,7 +166,7 @@ const PhotoUpload: React.FC = () => {
 						"mt-4 p-3 rounded-md text-sm text-center border",
 						uploadStatus.type === "error"
 							? "bg-destructive/10 border-destructive text-destructive-foreground"
-							: "bg-constructive/10 border-constructive text-constructive-foreground",
+							: "bg-constructive/10 border-constructive text-constructive-foreground", // Assuming 'constructive' is a defined theme color
 					)}
 					role={uploadStatus.type === "error" ? "alert" : "status"}
 				>
