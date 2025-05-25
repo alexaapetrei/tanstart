@@ -24,7 +24,7 @@ const deletePhotoSchema = z.object({
  */
 export const getPhotosServerFn = createServerFn({
 	method: "GET",
-	fn: async () => {
+	handler: async () => {
 		try {
 			const photos = await dbGetAllPhotos();
 			return photos;
@@ -45,7 +45,7 @@ export const getPhotosServerFn = createServerFn({
 export const addPhotoServerFn = createServerFn({
 	method: "POST",
 	schema: addPhotoSchema,
-	fn: async (validatedPhotoData: Omit<Photo, "id">) => {
+	handler: async (validatedPhotoData: Omit<Photo, "id">) => {
 		try {
 			const newPhotoId = await dbAddPhoto(validatedPhotoData);
 			return newPhotoId;
@@ -63,7 +63,7 @@ export const addPhotoServerFn = createServerFn({
 export const deletePhotoServerFn = createServerFn({
 	method: "POST",
 	schema: deletePhotoSchema,
-	fn: async (validatedData: { id: string }) => {
+	handler: async (validatedData: { id: string }) => {
 		try {
 			await dbDeletePhoto(validatedData.id);
 			// Typically, a successful deletion doesn't return content,
