@@ -48,5 +48,7 @@
 	"github.copilot.chat.commitMessageGeneration.instructions": [
 		{ "file": ".cursorrules" }
 	],
-	"chat.promptFiles": true
+	"chat.promptFiles": true,
+	"IDX.aI.enableInlineCompletion": true,
+	"IDX.aI.enableCodebaseIndexing": true
 }
