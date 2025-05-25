@@ -1,18 +1,17 @@
 import {
-	NavigationMenu,
-	NavigationMenuContent,
-	NavigationMenuItem,
-	NavigationMenuLink,
-	NavigationMenuList,
-	NavigationMenuTrigger,
-	navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu";
-import { cn } from "@/lib/utils";
+	Menubar,
+	MenubarContent,
+	MenubarItem,
+	MenubarMenu,
+	MenubarSub,
+	MenubarSubContent,
+	MenubarSubTrigger,
+	MenubarTrigger,
+} from "@/components/ui/menubar";
 import { Link } from "@tanstack/react-router";
 import { FormInput, Home, Search, Server, Store, Table } from "lucide-react";
-import * as React from "react";
 
-/** Site header with enhanced dropdown navigation */
+/** Site header with menubar navigation */
 const Header = () => {
 	const formItems = [
 		{
@@ -41,135 +40,101 @@ const Header = () => {
 	];
 
 	const pooItems = [
-		{
-			title: "poo",
-			to: "/poo",
-			description: "Some Poo",
-		},
-		{
-			title: "Poo nanu",
-			to: "/poo/nanu",
-			description: "The Nanu",
-		},
+		{ title: "poo", to: "/poo", description: "Some Poo" },
+		{ title: "Poo nanu", to: "/poo/nanu", description: "The Nanu" },
 	];
 
 	return (
-		<header className="p-2 flex justify-between bg-white text-black">
-			<NavigationMenu>
-				<NavigationMenuList className="flex flex-row gap-4 items-center">
-					<NavigationMenuItem>
-						<Link to="/">
-							<NavigationMenuLink
-								className={cn(navigationMenuTriggerStyle(), "font-bold")}
-							>
-								<Home className="h-4 w-4 mr-2" /> Home
-							</NavigationMenuLink>
-						</Link>
-					</NavigationMenuItem>
-					<NavigationMenuItem>
-						<NavigationMenuTrigger
-							className={cn(navigationMenuTriggerStyle(), "font-bold")}
-						>
-							<FormInput className="h-4 w-4 mr-2" /> Forms
-						</NavigationMenuTrigger>
-						<NavigationMenuContent>
-							<ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2">
-								{formItems.map((item) => (
-									<ListItem key={item.title} title={item.title} to={item.to}>
-										{item.description}
-									</ListItem>
-								))}
-							</ul>
-						</NavigationMenuContent>
-					</NavigationMenuItem>
-					<NavigationMenuItem>
-						<NavigationMenuTrigger
-							className={cn(navigationMenuTriggerStyle(), "font-bold")}
-						>
-							<Server className="h-4 w-4 mr-2" /> Start
-						</NavigationMenuTrigger>
-						<NavigationMenuContent>
-							<ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2">
-								{startItems.map((item) => (
-									<ListItem key={item.title} title={item.title} to={item.to}>
-										{item.description}
-									</ListItem>
-								))}
-							</ul>
-						</NavigationMenuContent>
-					</NavigationMenuItem>
-					<NavigationMenuItem>
-						<Link to="/demo/store">
-							<NavigationMenuLink
-								className={cn(navigationMenuTriggerStyle(), "font-bold")}
-							>
-								<Store className="h-4 w-4 mr-2" /> Store
-							</NavigationMenuLink>
-						</Link>
-					</NavigationMenuItem>
-					<NavigationMenuItem>
-						<Link to="/demo/table">
-							<NavigationMenuLink
-								className={cn(navigationMenuTriggerStyle(), "font-bold")}
-							>
-								<Table className="h-4 w-4 mr-2" /> TanStack Table
-							</NavigationMenuLink>
-						</Link>
-					</NavigationMenuItem>
-					<NavigationMenuItem>
-						<Link to="/demo/tanstack-query">
-							<NavigationMenuLink
-								className={cn(navigationMenuTriggerStyle(), "font-bold")}
-							>
-								<Search className="h-4 w-4 mr-2" /> TanStack Query
-							</NavigationMenuLink>
-						</Link>
-					</NavigationMenuItem>
-					<NavigationMenuItem>
-						<NavigationMenuTrigger
-							className={cn(navigationMenuTriggerStyle(), "font-bold")}
-						>
-							<Server className="h-4 w-4 mr-2" /> Poo
-						</NavigationMenuTrigger>
-						<NavigationMenuContent>
-							<ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2">
-								{pooItems.map((item) => (
-									<ListItem key={item.title} title={item.title} to={item.to}>
-										{item.description}
-									</ListItem>
-								))}
-							</ul>
-						</NavigationMenuContent>
-					</NavigationMenuItem>
-				</NavigationMenuList>
-			</NavigationMenu>
+		<header className="p-2 flex bg-gray-900 justify-center">
+			<Menubar>
+				<MenubarMenu>
+					<Link to="/">
+						<MenubarTrigger className="font-bold flex items-center">
+							<Home className="h-4 w-4 mr-2" /> Home
+						</MenubarTrigger>
+					</Link>
+				</MenubarMenu>
+
+				<MenubarMenu>
+					<MenubarTrigger className="font-bold flex items-center">
+						<FormInput className="h-4 w-4 mr-2" /> Forms
+					</MenubarTrigger>
+					<MenubarContent>
+						{formItems.map((item) => (
+							<Link key={item.title} to={item.to}>
+								<MenubarItem>{item.title}</MenubarItem>
+							</Link>
+						))}
+					</MenubarContent>
+				</MenubarMenu>
+
+				<MenubarMenu>
+					<MenubarTrigger className="font-bold flex items-center">
+						<Server className="h-4 w-4 mr-2" /> Start
+					</MenubarTrigger>
+					<MenubarContent>
+						{startItems.map((item) => (
+							<Link key={item.title} to={item.to}>
+								<MenubarItem>{item.title}</MenubarItem>
+							</Link>
+						))}
+					</MenubarContent>
+				</MenubarMenu>
+
+				<MenubarMenu>
+					<Link to="/demo/store">
+						<MenubarTrigger className="font-bold flex items-center">
+							<Store className="h-4 w-4 mr-2" /> Store
+						</MenubarTrigger>
+					</Link>
+					<MenubarContent>
+						<MenubarItem>
+							<Link to="/demo/store">Go to Store</Link>
+						</MenubarItem>
+					</MenubarContent>
+				</MenubarMenu>
+
+				<MenubarMenu>
+					<Link to="/demo/table">
+						<MenubarTrigger className="font-bold flex items-center">
+							<Table className="h-4 w-4 mr-2" /> TanStack Table
+						</MenubarTrigger>
+					</Link>
+					<MenubarContent>
+						<MenubarItem>
+							<Link to="/demo/table">Go to TanStack Table</Link>
+						</MenubarItem>
+					</MenubarContent>
+				</MenubarMenu>
+
+				<MenubarMenu>
+					<Link to="/demo/tanstack-query">
+						<MenubarTrigger className="font-bold flex items-center">
+							<Search className="h-4 w-4 mr-2" /> TanStack Query
+						</MenubarTrigger>
+					</Link>
+					<MenubarContent>
+						<MenubarItem>
+							<Link to="/demo/tanstack-query">Go to TanStack Query</Link>
+						</MenubarItem>
+					</MenubarContent>
+				</MenubarMenu>
+
+				<MenubarMenu>
+					<MenubarTrigger className="font-bold flex items-center">
+						<Server className="h-4 w-4 mr-2" /> Poo
+					</MenubarTrigger>
+					<MenubarContent>
+						{pooItems.map((item) => (
+							<Link key={item.title} to={item.to}>
+								<MenubarItem>{item.title}</MenubarItem>
+							</Link>
+						))}
+					</MenubarContent>
+				</MenubarMenu>
+			</Menubar>
 		</header>
 	);
 };
-
-const ListItem = React.forwardRef<
-	React.ElementRef<"a">,
-	React.ComponentPropsWithoutRef<"a"> & { to: string }
->(({ className, title, children, to, ...props }, ref) => (
-	<li>
-		<NavigationMenuLink asChild>
-			<Link
-				to={to}
-				ref={ref}
-				className={cn(
-					"block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-					className,
-				)}
-				{...props}
-			>
-				<div className="text-sm font-medium leading-none">{title}</div>
-				<p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-					{children}
-				</p>
-			</Link>
-		</NavigationMenuLink>
-	</li>
-));
-ListItem.displayName = "ListItem";
 
 export default Header;
