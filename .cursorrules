@@ -1,0 +1,208 @@
+# shadcn instructions
+
+Use the latest version of Shadcn to install new components, like this command to add a button component:
+
+```bash
+bun shadcn@latest add button
+```
+
+## Project Overview
+- **Name**: Tanstart
+- **Framework**: React 19 with TypeScript
+- **Bundler**: Vinxi (for development, build, and start)
+- **Styling**: Tailwind CSS with shadcn/ui components
+- **State Management**: TanStack React Query, TanStack Store
+- **Routing**: TanStack React Router with Query
+- **Form Handling**: TanStack React Form
+- **Table Components**: TanStack React Table
+- **Type Safety**: Zod for schema validation
+- **Linting/Formatting**: Biome
+- **Testing**: Vitest with Testing Library
+- **Environment Variables**: T3 OSS Env Core
+- **Icons**: Lucide React
+
+## Coding Guidelines
+
+### General
+- Write all code in **TypeScript** with strict type checking.
+- Use **ES Modules** (`import`/`export`) as the project is configured with `"type": "module"`.
+- Follow **Biome** formatting and linting rules (`biome format` and `biome lint`).
+- Avoid modifying code outside the scope of the current task.
+- Use **camelCase** for variable and function names.
+- Write concise, readable code with clear intent.
+
+### React and Components
+- Use **React 19** functional components with hooks (e.g., `useState`, `useEffect`).
+- Prefer **arrow functions** for component definitions and callbacks (e.g., `const MyComponent = () => {}`).
+- Use **shadcn/ui** components (e.g., Button, Select, Slider) from `@radix-ui` and `class-variance-authority` for UI elements.
+- Apply **Tailwind CSS** classes via `tailwind-merge` and `clsx` for dynamic class handling.
+- Include **Lucide React** icons where appropriate (e.g., `<Icon name="Check" />`).
+- Add **JSDoc** comments for complex components or hooks to document props and behavior.
+- Example:
+  ```tsx
+  /** Renders a submit button with loading state */
+  const SubmitButton = ({ isLoading }: { isLoading: boolean }) => (
+    <Button className={cn("w-full", isLoading && "opacity-50")} disabled={isLoading}>
+      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Submit"}
+    </Button>
+  );
+  ```
+
+### Routing
+- Use **TanStack React Router** (`@tanstack/react-router`) for routing logic.
+- Leverage `@tanstack/react-router-with-query` for query-integrated routes.
+- Define routes in a `routes` directory or `app.tsx` as per Vinxi conventions.
+- Example route definition:
+  ```tsx
+  import { createRoute } from '@tanstack/react-router';
+  export const route = createRoute({
+    path: '/dashboard',
+    component: () => <div>Dashboard</div>,
+  });
+  ```
+
+### State and Data Fetching
+- Use **TanStack React Query** (`@tanstack/react-query`) for data fetching, caching, and mutations.
+- Prefer query keys as arrays (e.g., `['users', userId]`) for clarity.
+- Use **TanStack Store** (`@tanstack/react-store`) for lightweight state management when React Query is overkill.
+- Example query:
+  ```tsx
+  import { useQuery } from '@tanstack/react-query';
+  const fetchUsers = async () => {
+    const res = await fetch('/api/users');
+    return res.json();
+  };
+  const { data } = useQuery({ queryKey: ['users'], queryFn: fetchUsers });
+  ```
+
+### Forms
+- Use **TanStack React Form** (`@tanstack/react-form`) for form handling.
+- Validate forms with **Zod** schemas for type safety.
+- Example:
+  ```tsx
+  import { useForm } from '@tanstack/react-form';
+  import { z } from 'zod';
+  const schema = z.object({ name: z.string().min(1) });
+  const form = useForm({ defaultValues: { name: '' }, validator: schema });
+  ```
+
+### Tables
+- Use **TanStack React Table** (`@tanstack/react-table`) for data tables.
+- Leverage `@tanstack/match-sorter-utils` for filtering and sorting.
+- Example:
+  ```tsx
+  import { useReactTable, getCoreRowModel } from '@tanstack/react-table';
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  });
+  ```
+
+### Styling
+- Use **Tailwind CSS** classes for styling, following the `tailwindcss-animate` plugin for animations.
+- Combine classes with `tailwind-merge` and `clsx` for conditional styling.
+- Example:
+  ```tsx
+  import { cn } from '@/lib/utils';
+  <div className={cn("p-4", isActive && "bg-blue-500")}>Content</div>
+  ```
+
+### Environment Variables
+- Use **T3 OSS Env Core** (`@t3-oss/env-core`) for environment variable validation with Zod.
+- Define variables in a `.env` file and validate in `env.ts`.
+- Example:
+  ```ts
+  import { createEnv } from '@t3-oss/env-core';
+  import { z } from 'zod';
+  export const env = createEnv({
+    client: { VITE_API_URL: z.string().url() },
+    runtimeEnv: import.meta.env,
+  });
+  ```
+
+### Testing
+- Write tests using **Vitest** and **Testing Library** (`@testing-library/react`).
+- Place tests in `__tests__` folders or alongside components with `.test.tsx` extensions.
+- Example:
+  ```tsx
+  import { render, screen } from '@testing-library/react';
+  import MyComponent from './MyComponent';
+  test('renders component', () => {
+    render(<MyComponent />);
+    expect(screen.getByText('Hello')).toBeInTheDocument();
+  });
+  ```
+
+### File Structure
+- Follow Vinxi’s conventions for file-based routing in `app` or `routes` directories.
+- Place reusable components in `src/components`.
+- Store utility functions in `src/lib`.
+- Organize hooks in `src/hooks`.
+- Example:
+  ```
+  src/
+  ├── components/
+  │   └── Button.tsx
+  ├── hooks/
+  │   └── useCustomHook.ts
+  ├── lib/
+  │   └── utils.ts
+  ├── routes/
+  │   └── index.tsx
+  ```
+
+### Tooling
+- Run `bun dev` for development, `bun build` for production builds, and `bun test` for tests.
+- Use `bun format` and `bun lint` to enforce Biome rules before committing.
+- Include **TanStack React Query Devtools** and **TanStack Router Devtools** in development mode only.
+- Example:
+  ```tsx
+  import { QueryClientProvider } from '@tanstack/react-query';
+  import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+  const App = () => (
+    <QueryClientProvider client={queryClient}>
+      <Router />
+      {import.meta.env.DEV && <ReactQueryDevtools />}
+    </QueryClientProvider>
+  );
+  ```
+
+### Best Practices
+- Avoid unnecessary dependencies outside the `package.json` list.
+- Use **faker-js** (`@faker-js/faker`) for mock data in tests or development.
+- Keep components small and focused, with a single responsibility.
+- Use **absolute imports** with `vite-tsconfig-paths` (e.g., `import { cn } from '@/lib/utils'`).
+- Write **type-safe** code with explicit types/interfaces where needed.
+- Avoid inline styles; use Tailwind CSS instead.
+
+## Example Component
+```tsx
+import { Button } from '@/components/ui/button';
+import { useQuery } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
+import { LucideIcon } from 'lucide-react';
+
+/** A button that fetches and displays data */
+const DataButton = ({ id }: { id: string }) => {
+  const { data, isLoading } = useQuery({
+    queryKey: ['data', id],
+    queryFn: async () => (await fetch(`/api/data/${id}`)).json(),
+  });
+
+  return (
+    <Button className={cn('flex gap-2', isLoading && 'opacity-50')}>
+      <LucideIcon name="RefreshCw" />
+      {isLoading ? 'Loading...' : data?.name}
+    </Button>
+  );
+};
+
+export default DataButton;
+```
+
+## Notes
+- Do not suggest dependencies or tools not listed in `package.json`.
+- Always validate code with Biome before committing.
+- Use TanStack libraries over alternatives for consistency.
+- Keep accessibility in mind when using shadcn/ui components (e.g., proper ARIA attributes).
