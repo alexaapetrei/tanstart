@@ -1,0 +1,57 @@
+
+> dev
+> vinxi dev
+
+vinxi v0.5.6
+vinxi starting dev server
+
+♻️  Generating routes...
+🟡 Updating /app/src/routeTree.gen.ts
+✅ Processed routes in 296ms
+
+  ➜ Local:    http://localhost:3000/
+  ➜ Network:  use --host to expose
+
+6:34:20 PM [vite] (ssr) page reload src/components/ui/navigation-menu.tsx
+6:34:20 PM [vite] (client) page reload src/components/ui/navigation-menu.tsx
+6:34:20 PM [vite] (ssr) page reload src/ws.ts
+6:34:20 PM [vite] (client) page reload src/ws.ts
+6:34:20 PM [vite] (ssr) page reload src/lib/indexeddb.ts
+6:34:20 PM [vite] (client) page reload src/lib/indexeddb.ts
+6:34:20 PM [vite] (ssr) hmr update /src/routes/index.tsx, /src/styles.css
+
+♻️  Regenerating routes...
+6:34:20 PM [vite] (ssr) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css
+6:34:20 PM [vite] (client) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css?direct, /src/styles.css
+✅ Processed routes in 118ms
+6:34:20 PM [vite] (client) hmr update /src/routes/index.tsx, /src/styles.css?direct, /src/styles.css, /src/routes/index.tsx?tsr-split=component
+6:34:54 PM [vite] (ssr) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css
+
+♻️  Regenerating routes...
+✅ Processed routes in 48ms
+6:34:54 PM [vite] (client) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css?direct, /src/styles.css
+6:34:57 PM [vite] (ssr) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css
+
+♻️  Regenerating routes...
+✅ Processed routes in 46ms
+6:34:57 PM [vite] (client) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css?direct, /src/styles.css
+6:35:08 PM [vite] (ssr) page reload src/ws.ts
+6:35:08 PM [vite] (client) page reload src/ws.ts
+6:35:08 PM [vite] (ssr) page reload src/lib/indexeddb.ts
+6:35:08 PM [vite] (client) page reload src/lib/indexeddb.ts
+6:35:08 PM [vite] (ssr) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css
+
+♻️  Regenerating routes...
+✅ Processed routes in 45ms
+6:35:08 PM [vite] (client) hmr update /src/routes/poker.$roomId.tsx, /src/styles.css?direct, /src/styles.css
+6:35:24 PM [vite] (ssr) page reload src/ws.ts
+6:35:24 PM [vite] (client) page reload src/ws.ts
+6:35:30 PM [vite] (ssr) hmr update /src/routes/index.tsx, /src/styles.css
+
+♻️  Regenerating routes...
+✅ Processed routes in 53ms
+6:35:30 PM [vite] (client) hmr update /src/routes/index.tsx, /src/styles.css?direct, /src/styles.css, /src/routes/index.tsx?tsr-split=component
+6:35:51 PM [vite] (ssr) page reload src/ws.ts
+6:35:51 PM [vite] (client) page reload src/ws.ts
+6:36:06 PM [vite] (ssr) page reload src/ws.ts
+6:36:06 PM [vite] (client) page reload src/ws.ts
