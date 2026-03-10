@@ -1,3 +1,4 @@
+import { ConvexProvider, ConvexReactClient } from "convex/react";
 import {
 	HeadContent,
 	Outlet,
@@ -13,6 +14,8 @@ import type { QueryClient } from "@tanstack/react-query";
 interface MyRouterContext {
 	queryClient: QueryClient;
 }
+
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 export const Route = createRootRouteWithContext<MyRouterContext>()({
 	head: () => ({
@@ -38,7 +41,9 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 	component: () => (
 		<RootDocument>
-			<Outlet />
+			<ConvexProvider client={convex}>
+				<Outlet />
+			</ConvexProvider>
 			<TanStackRouterDevtools />
 		</RootDocument>
 	),

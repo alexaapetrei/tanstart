@@ -1,0 +1,13 @@
+
+> dev
+> vinxi dev
+
+vinxi v0.5.6
+vinxi starting dev server
+
+♻️  Generating routes...
+✅ Processed routes in 243ms
+[get-port] Unable to find an available port (tried 3000 on host "localhost"). Using alternative port 3001.
+
+  ➜ Local:    http://localhost:3001/
+  ➜ Network:  use --host to expose

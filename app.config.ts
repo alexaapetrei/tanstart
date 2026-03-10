@@ -2,7 +2,7 @@ import { defineConfig } from '@tanstack/react-start/config'
 import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 
-const config = await defineConfig({
+const config = defineConfig({
 	tsr: {
 		appDirectory: "src",
 	},
@@ -15,14 +15,6 @@ const config = await defineConfig({
 			tailwindcss(),
 		],
 	},
-});
-
-config.addRouter({
-	name: "ws",
-	type: "http",
-	handler: "./src/ws.ts",
-	target: "server",
-	base: "/_ws",
 });
 
 export default config;

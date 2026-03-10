@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery } from "convex/react";
 import { AlertCircle, Copy, Eye, Info, RefreshCw, Users } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
+import { api } from "../../convex/_generated/api";
 
 const pokerSearchSchema = z.object({
 	nickname: z.string(),
@@ -12,93 +14,57 @@ export const Route = createFileRoute("/poker/$roomId")({
 	validateSearch: pokerSearchSchema,
 });
 
-interface Player {
-	nickname: string;
-	vote: string | null;
-	isGM: boolean;
-}
-
-interface RoomState {
-	id: string;
-	players: Record<string, Player>;
-	revealed: boolean;
-}
-
 const FIBONACCI_CARDS = ["0", "1", "2", "3", "5", "8", "13", "21", "?", "☕"];
 
 function PokerRoom() {
-	const { roomId } = Route.useParams();
+	const { roomId: roomName } = Route.useParams();
 	const { nickname } = Route.useSearch();
-	const [roomState, setRoomState] = useState<RoomState | null>(null);
-	const [selfId, setSelfId] = useState<string | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	const [connected, setConnected] = useState(false);
-	const ws = useRef<WebSocket | null>(null);
 
-	const connect = useCallback(() => {
-		setError(null);
-		setConnected(false);
+	const roomData = useQuery(api.poker.getRoom, { name: roomName });
+	const joinRoom = useMutation(api.poker.joinRoom);
+	const voteMutation = useMutation(api.poker.vote);
+	const revealMutation = useMutation(api.poker.reveal);
+	const resetMutation = useMutation(api.poker.reset);
+	const heartbeatMutation = useMutation(api.poker.heartbeat);
+	const cleanOldPlayersMutation = useMutation(api.poker.cleanOldPlayers);
 
-		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const host = window.location.host;
-		const wsUrl = `${protocol}//${host}/_ws`;
-
-		console.log("Connecting to", wsUrl);
-
-		try {
-			ws.current = new WebSocket(wsUrl);
-
-			ws.current.onopen = () => {
-				console.log("WebSocket connected");
-				setConnected(true);
-				ws.current?.send(JSON.stringify({ type: "join", roomId, nickname }));
-			};
-
-			ws.current.onmessage = (event) => {
-				const data = JSON.parse(event.data);
-				if (data.type === "state") {
-					setRoomState(data.state);
-					if (data.selfId) setSelfId(data.selfId);
-				}
-			};
-
-			ws.current.onerror = (err) => {
-				console.error("WebSocket error", err);
-				setError("Connection error. Is the server running?");
-			};
-
-			ws.current.onclose = () => {
-				console.log("WebSocket closed");
-				setConnected(false);
-			};
-		} catch (e) {
-			console.error("Failed to create WebSocket", e);
-			setError("Failed to initialize connection.");
-		}
-	}, [roomId, nickname]);
+	const [playerId, setPlayerId] = useState<string | null>(null);
+	const [joined, setJoined] = useState(false);
 
 	useEffect(() => {
-		connect();
-		return () => {
-			ws.current?.close();
-		};
-	}, [connect]);
+		if (!joined && roomData !== undefined) {
+			joinRoom({ roomName, nickname }).then(({ playerId }) => {
+				setPlayerId(playerId);
+				setJoined(true);
+			});
+		}
+	}, [joined, roomData, roomName, nickname, joinRoom]);
+
+	useEffect(() => {
+		if (playerId && roomData?._id) {
+			const interval = setInterval(() => {
+				heartbeatMutation({ playerId: playerId as any });
+				cleanOldPlayersMutation({ roomId: roomData._id });
+			}, 10000);
+			return () => clearInterval(interval);
+		}
+	}, [playerId, roomData?._id, heartbeatMutation, cleanOldPlayersMutation]);
 
 	const handleVote = (vote: string) => {
-		if (ws.current?.readyState === WebSocket.OPEN) {
-			ws.current?.send(JSON.stringify({ type: "vote", roomId, vote }));
+		if (playerId) {
+			voteMutation({ playerId: playerId as any, vote });
 		}
 	};
 
 	const handleReveal = () => {
-		if (ws.current?.readyState === WebSocket.OPEN) {
-			ws.current?.send(JSON.stringify({ type: "reveal", roomId }));
+		if (roomData?._id) {
+			revealMutation({ roomId: roomData._id, revealed: true });
 		}
 	};
 
 	const handleReset = () => {
-		if (ws.current?.readyState === WebSocket.OPEN) {
-			ws.current?.send(JSON.stringify({ type: "reset", roomId }));
+		if (roomData?._id) {
+			resetMutation({ roomId: roomData._id });
 		}
 	};
 
@@ -107,28 +73,7 @@ function PokerRoom() {
 		alert("Room link copied to clipboard!");
 	};
 
-	if (error) {
-		return (
-			<div className="min-h-screen bg-[#1a1c2c] flex items-center justify-center p-6">
-				<div className="bg-[#2a2d3e] p-8 rounded-2xl shadow-2xl border border-red-900/50 max-w-sm w-full text-center">
-					<AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-					<h2 className="text-xl font-bold text-white mb-2">
-						Connection Failed
-					</h2>
-					<p className="text-gray-400 mb-6">{error}</p>
-					<button
-						type="button"
-						onClick={connect}
-						className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-500 transition active:scale-95"
-					>
-						Try Again
-					</button>
-				</div>
-			</div>
-		);
-	}
-
-	if (!roomState) {
+	if (roomData === undefined || !joined) {
 		return (
 			<div className="min-h-screen bg-[#1a1c2c] flex items-center justify-center">
 				<div className="text-center">
@@ -141,9 +86,21 @@ function PokerRoom() {
 		);
 	}
 
-	const players = Object.entries(roomState.players);
-	const isGM = selfId ? roomState.players[selfId]?.isGM : false;
-	const myVote = selfId ? roomState.players[selfId]?.vote : null;
+	if (roomData === null) {
+		return (
+			<div className="min-h-screen bg-[#1a1c2c] flex items-center justify-center">
+				<div className="text-center">
+					<p className="text-white">Room not found.</p>
+				</div>
+			</div>
+		);
+	}
+
+	const players = roomData.players;
+	const self = players.find((p) => p._id === playerId);
+	const isGM = self?.isGM ?? false;
+	const myVote = self?.vote ?? null;
+	const revealed = roomData.revealed;
 
 	return (
 		<div className="min-h-screen bg-[#0f111a] text-gray-100 font-sans selection:bg-blue-500/30">
@@ -154,13 +111,10 @@ function PokerRoom() {
 						<Info className="w-5 h-5 text-white" />
 					</div>
 					<div>
-						<h1 className="text-lg font-bold tracking-tight">{roomId}</h1>
+						<h1 className="text-lg font-bold tracking-tight">{roomName}</h1>
 						<div className="flex items-center text-xs text-gray-400">
-							<span
-								className={`w-2 h-2 rounded-full mr-1.5 ${connected ? "bg-green-500" : "bg-red-500"}`}
-							/>
-							{connected ? "Connected" : "Disconnected"} • {players.length}{" "}
-							Players
+							<span className="w-2 h-2 rounded-full mr-1.5 bg-green-500" />
+							Live • {players.length} Players
 						</div>
 					</div>
 				</div>
@@ -180,9 +134,7 @@ function PokerRoom() {
 							<button
 								type="button"
 								onClick={handleReveal}
-								disabled={
-									roomState.revealed || players.every((p) => !p[1].vote)
-								}
+								disabled={revealed || players.every((p) => !p.vote)}
 								className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-500 px-4 py-2 rounded-lg text-sm transition font-bold shadow-lg shadow-green-900/20"
 							>
 								<Eye className="w-4 h-4" />
@@ -202,7 +154,6 @@ function PokerRoom() {
 			</header>
 
 			<main className="p-6 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
-				{/* Left Column: Player List */}
 				<aside className="lg:col-span-1 space-y-6">
 					<div className="bg-[#1a1c2c] rounded-2xl overflow-hidden shadow-xl border border-gray-800">
 						<div className="px-5 py-4 border-b border-gray-800 bg-[#24273a] flex items-center justify-between">
@@ -212,22 +163,23 @@ function PokerRoom() {
 							</div>
 						</div>
 						<ul className="divide-y divide-gray-800/50">
-							{players.map(([id, player]) => (
+							{players.map((player) => (
 								<li
-									key={id}
-									className={`px-5 py-4 flex items-center justify-between ${id === selfId ? "bg-blue-500/5" : ""}`}
+									key={player._id}
+									className={`px-5 py-4 flex items-center justify-between ${player._id === playerId ? "bg-blue-500/5" : ""}`}
 								>
 									<div className="flex items-center space-x-3">
 										<div
-											className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${id === selfId ? "bg-blue-600" : "bg-gray-700"} shadow-md`}
+											className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${player._id === playerId ? "bg-blue-600" : "bg-gray-700"} shadow-md`}
 										>
 											{player.nickname[0].toUpperCase()}
 										</div>
 										<div>
 											<p
-												className={`text-sm font-semibold ${id === selfId ? "text-blue-400" : "text-gray-200"}`}
+												className={`text-sm font-semibold ${player._id === playerId ? "text-blue-400" : "text-gray-200"}`}
 											>
-												{player.nickname} {id === selfId && "(You)"}
+												{player.nickname}{" "}
+												{player._id === playerId && "(You)"}
 											</p>
 											{player.isGM && (
 												<span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">
@@ -238,7 +190,7 @@ function PokerRoom() {
 									</div>
 									<div className="flex items-center">
 										{player.vote ? (
-											roomState.revealed ? (
+											revealed ? (
 												<div className="w-8 h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-lg transform rotate-3">
 													{player.vote}
 												</div>
@@ -261,10 +213,8 @@ function PokerRoom() {
 					</div>
 				</aside>
 
-				{/* Center/Right: Poker Table and Cards */}
 				<section className="lg:col-span-3 space-y-8">
-					{/* Results Display */}
-					{roomState.revealed && (
+					{revealed && (
 						<div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 text-center shadow-2xl relative overflow-hidden group">
 							<div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
 							<div className="relative z-10">
@@ -272,7 +222,7 @@ function PokerRoom() {
 									Final Consensus
 								</h3>
 								<div className="text-6xl font-black text-white mb-2 drop-shadow-lg">
-									{calculateAverage(players.map((p) => p[1].vote))}
+									{calculateAverage(players.map((p) => p.vote))}
 								</div>
 								<p className="text-blue-100/80 text-sm font-medium">
 									Average Story Points
@@ -284,7 +234,6 @@ function PokerRoom() {
 						</div>
 					)}
 
-					{/* Card Selection */}
 					<div className="bg-[#1a1c2c] rounded-3xl p-8 border border-gray-800 shadow-xl relative">
 						<div className="absolute -top-4 left-10 bg-[#0f111a] px-4 py-1 rounded-full border border-gray-800">
 							<span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
@@ -298,7 +247,7 @@ function PokerRoom() {
 									type="button"
 									key={card}
 									onClick={() => handleVote(card)}
-									disabled={roomState.revealed}
+									disabled={revealed}
 									className={`
                     relative aspect-[2/3] rounded-xl border-2 font-black text-3xl transition-all duration-300
                     flex flex-col items-center justify-center overflow-hidden
@@ -307,7 +256,7 @@ function PokerRoom() {
 												? "bg-blue-600 border-white text-white shadow-[0_0_25px_rgba(37,99,235,0.4)] scale-105 z-10"
 												: "bg-[#24273a] border-gray-700 text-gray-400 hover:border-blue-500/50 hover:bg-[#2a2d3e] hover:text-white"
 										}
-                    ${roomState.revealed ? "opacity-40 grayscale cursor-not-allowed scale-95" : "hover:-translate-y-2 active:scale-95"}
+                    ${revealed ? "opacity-40 grayscale cursor-not-allowed scale-95" : "hover:-translate-y-2 active:scale-95"}
                   `}
 								>
 									<span
@@ -330,27 +279,25 @@ function PokerRoom() {
 						</div>
 					</div>
 
-					{/* Table Background Decoration */}
 					<div className="hidden lg:block h-64 bg-green-900/10 rounded-[100px] border-4 border-green-800/20 flex items-center justify-center relative shadow-inner overflow-hidden">
 						<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.4)_100%)]" />
 						<Spade className="w-20 h-20 text-green-800/20" />
 
-						{/* Player Avatars around table */}
 						<div className="absolute w-full h-full flex items-center justify-center">
-							{players.map(([id, player], index) => {
+							{players.map((player, index) => {
 								const angle = (index / players.length) * 2 * Math.PI;
 								const x = Math.cos(angle) * 180;
 								const y = Math.sin(angle) * 80;
 								return (
 									<div
-										key={id}
+										key={player._id}
 										className="absolute transition-all duration-500"
 										style={{ transform: `translate(${x}px, ${y}px)` }}
 									>
 										<div
 											className={`w-12 h-12 rounded-full border-2 border-gray-800 flex items-center justify-center text-xs font-bold shadow-lg overflow-hidden ${player.vote ? "bg-green-600 border-green-400" : "bg-gray-700"}`}
 										>
-											{player.vote && !roomState.revealed
+											{player.vote && !revealed
 												? "?"
 												: player.nickname[0].toUpperCase()}
 										</div>
