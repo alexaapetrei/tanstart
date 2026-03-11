@@ -5,7 +5,7 @@ export default defineSchema({
   rooms: defineTable({
     name: v.string(),
     revealed: v.boolean(),
-    maxFib: v.number(),
+    maxFib: v.optional(v.number()),
   }).index("by_name", ["name"]),
   players: defineTable({
     roomId: v.id("rooms"),
