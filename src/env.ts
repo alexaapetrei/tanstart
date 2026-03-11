@@ -14,13 +14,20 @@ export const env = createEnv({
 
 	client: {
 		VITE_APP_TITLE: z.string().min(1).optional(),
+		VITE_CONVEX_URL: z.string().url(),
+		VITE_CONVEX_DEPLOYMENT: z.string().optional(),
 	},
 
 	/**
 	 * What object holds the environment variables at runtime. This is usually
 	 * `process.env` or `import.meta.env`.
 	 */
-	runtimeEnv: import.meta.env,
+	runtimeEnv: {
+		SERVER_URL: process.env.SERVER_URL,
+		VITE_APP_TITLE: import.meta.env.VITE_APP_TITLE,
+		VITE_CONVEX_URL: import.meta.env.VITE_CONVEX_URL,
+		VITE_CONVEX_DEPLOYMENT: import.meta.env.VITE_CONVEX_DEPLOYMENT,
+	},
 
 	/**
 	 * By default, this library will feed the environment variables directly to
