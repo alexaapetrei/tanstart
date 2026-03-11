@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vinxi dev",
     "start": "vinxi start",
-    "build": "npx convex deploy --cmd \"vinxi build\"",
+    "build": "mkdir -p .convex_tmp && CONVEX_TMPDIR=.convex_tmp npx convex deploy --cmd \"vinxi build\"",
     "serve": "vite preview",
     "test": "vitest run",
     "format": "biome format",
