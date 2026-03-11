@@ -1,0 +1,1 @@
+import { mutationGeneric, queryGeneric } from "convex/server"; export const query = queryGeneric; export const mutation = mutationGeneric; export const internalQuery = queryGeneric; export const internalMutation = mutationGeneric; export const action = queryGeneric; export const internalAction = queryGeneric;
