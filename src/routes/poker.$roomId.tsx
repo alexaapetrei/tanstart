@@ -14,7 +14,8 @@ export const Route = createFileRoute("/poker/$roomId")({
 	validateSearch: pokerSearchSchema,
 });
 
-const FIBONACCI_CARDS = ["0", "1", "2", "3", "5", "8", "13", "21", "?", "☕"];
+const FIBONACCI_SEQUENCE = ["0", "1", "2", "3", "5", "8", "13", "21"];
+const SPECIAL_CARDS = ["?", "☕"];
 
 function PokerRoom() {
 	const { roomId: roomName } = Route.useParams();
@@ -27,18 +28,47 @@ function PokerRoom() {
 	const resetMutation = useMutation(api.poker.reset);
 	const heartbeatMutation = useMutation(api.poker.heartbeat);
 	const cleanOldPlayersMutation = useMutation(api.poker.cleanOldPlayers);
+	const setMaxFibMutation = useMutation(api.poker.setMaxFib);
 
-	const [playerId, setPlayerId] = useState<string | null>(null);
+	const [playerId, setPlayerId] = useState<string | null>(() => {
+		if (typeof window !== "undefined") {
+			const saved = localStorage.getItem(`poker_playerId_${roomName}`);
+			return saved;
+		}
+		return null;
+	});
 	const [joined, setJoined] = useState(false);
+	const [joinError, setJoinError] = useState<string | null>(null);
+
+	const navigate = Route.useNavigate();
 
 	useEffect(() => {
 		if (!joined && roomData !== undefined) {
-			joinRoom({ roomName, nickname }).then(({ playerId }) => {
-				setPlayerId(playerId);
-				setJoined(true);
-			});
+			joinRoom({ roomName, nickname })
+				.then(({ playerId }) => {
+					setPlayerId(playerId);
+					setJoined(true);
+					localStorage.setItem(`poker_playerId_${roomName}`, playerId);
+				})
+				.catch((err) => {
+					if (err.message.includes("Nickname is already taken")) {
+						setJoinError("taken");
+					}
+				});
 		}
 	}, [joined, roomData, roomName, nickname, joinRoom]);
+
+	useEffect(() => {
+		if (joinError === "taken") {
+			navigate({
+				to: "/",
+				search: {
+					roomId: roomName,
+					error: "Nickname is already taken",
+				},
+			});
+		}
+	}, [joinError, navigate, roomName]);
 
 	useEffect(() => {
 		if (playerId && roomData?._id) {
@@ -65,6 +95,12 @@ function PokerRoom() {
 	const handleReset = () => {
 		if (roomData?._id) {
 			resetMutation({ roomId: roomData._id });
+		}
+	};
+
+	const handleSetMaxFib = (max: number) => {
+		if (roomData?._id && isGM) {
+			setMaxFibMutation({ roomId: roomData._id, maxFib: max });
 		}
 	};
 
@@ -101,32 +137,37 @@ function PokerRoom() {
 	const isGM = self?.isGM ?? false;
 	const myVote = self?.vote ?? null;
 	const revealed = roomData.revealed;
+	const maxFib = roomData.maxFib ?? 8;
+
+	const fibCards = FIBONACCI_SEQUENCE.filter((n) => Number(n) <= maxFib);
+	const allCards = [...fibCards, ...SPECIAL_CARDS];
 
 	return (
-		<div className="min-h-screen bg-[#0f111a] text-gray-100 font-sans selection:bg-blue-500/30">
+		<div className="min-h-screen bg-[#0f111a] text-gray-100 font-sans selection:bg-blue-500/30 flex flex-col overflow-hidden">
 			{/* Header */}
-			<header className="bg-[#1a1c2c] border-b border-gray-800 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-20 shadow-lg">
-				<div className="flex items-center space-x-4">
-					<div className="bg-green-600 p-2 rounded-lg shadow-inner">
-						<Info className="w-5 h-5 text-white" />
+			<header className="bg-[#1a1c2c] border-b border-gray-800 px-4 py-3 flex justify-between items-center z-20 shadow-lg shrink-0">
+				<div className="flex items-center space-x-3">
+					<div className="bg-blue-600 p-1.5 rounded-lg shadow-inner shrink-0">
+						<Spade className="w-4 h-4 text-white" />
 					</div>
-					<div>
-						<h1 className="text-lg font-bold tracking-tight">{roomName}</h1>
-						<div className="flex items-center text-xs text-gray-400">
-							<span className="w-2 h-2 rounded-full mr-1.5 bg-green-500" />
-							Live • {players.length} Players
+					<div className="min-w-0">
+						<h1 className="text-sm font-bold truncate leading-tight">
+							{roomName}
+						</h1>
+						<div className="flex items-center text-[10px] text-gray-400 leading-tight">
+							<span className="w-1.5 h-1.5 rounded-full mr-1 bg-green-500" />
+							{players.length} Players
 						</div>
 					</div>
 				</div>
 
-				<div className="flex items-center space-x-3 mt-4 sm:mt-0">
+				<div className="flex items-center space-x-2 shrink-0">
 					<button
 						type="button"
 						onClick={copyRoomLink}
-						className="flex items-center space-x-2 bg-gray-800 hover:bg-gray-700 px-3 py-2 rounded-lg text-sm transition font-medium border border-gray-700"
+						className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 transition border border-gray-700"
 					>
 						<Copy className="w-4 h-4" />
-						<span>Copy Link</span>
 					</button>
 
 					{isGM && (
@@ -135,182 +176,132 @@ function PokerRoom() {
 								type="button"
 								onClick={handleReveal}
 								disabled={revealed || players.every((p) => !p.vote)}
-								className="flex items-center space-x-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-500 px-4 py-2 rounded-lg text-sm transition font-bold shadow-lg shadow-green-900/20"
+								className="bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-500 px-3 py-1.5 rounded-lg text-xs transition font-bold shadow-lg"
 							>
-								<Eye className="w-4 h-4" />
-								<span>Reveal</span>
+								Reveal
 							</button>
 							<button
 								type="button"
 								onClick={handleReset}
-								className="flex items-center space-x-2 bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-sm transition font-bold shadow-lg shadow-red-900/20"
+								className="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded-lg text-xs transition font-bold shadow-lg"
 							>
-								<RefreshCw className="w-4 h-4" />
-								<span>Reset</span>
+								Reset
 							</button>
 						</div>
 					)}
 				</div>
 			</header>
 
-			<main className="p-6 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8">
-				<aside className="lg:col-span-1 space-y-6">
-					<div className="bg-[#1a1c2c] rounded-2xl overflow-hidden shadow-xl border border-gray-800">
-						<div className="px-5 py-4 border-b border-gray-800 bg-[#24273a] flex items-center justify-between">
-							<div className="flex items-center space-x-2">
-								<Users className="w-5 h-5 text-blue-400" />
-								<h2 className="font-bold">Participants</h2>
-							</div>
-						</div>
-						<ul className="divide-y divide-gray-800/50">
-							{players.map((player) => (
-								<li
-									key={player._id}
-									className={`px-5 py-4 flex items-center justify-between ${player._id === playerId ? "bg-blue-500/5" : ""}`}
-								>
-									<div className="flex items-center space-x-3">
-										<div
-											className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${player._id === playerId ? "bg-blue-600" : "bg-gray-700"} shadow-md`}
-										>
-											{player.nickname[0].toUpperCase()}
-										</div>
-										<div>
-											<p
-												className={`text-sm font-semibold ${player._id === playerId ? "text-blue-400" : "text-gray-200"}`}
-											>
-												{player.nickname}{" "}
-												{player._id === playerId && "(You)"}
-											</p>
-											{player.isGM && (
-												<span className="text-[10px] text-yellow-500 font-bold uppercase tracking-wider">
-													Game Master
-												</span>
-											)}
-										</div>
-									</div>
-									<div className="flex items-center">
-										{player.vote ? (
-											revealed ? (
-												<div className="w-8 h-10 bg-blue-600 rounded flex items-center justify-center font-bold text-white shadow-lg transform rotate-3">
-													{player.vote}
-												</div>
-											) : (
-												<div className="w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center">
-													<div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-												</div>
-											)
-										) : (
-											<div className="w-8 h-8 bg-gray-800/50 rounded-full flex items-center justify-center">
-												<span className="text-[10px] text-gray-500 animate-pulse font-bold">
-													...
-												</span>
-											</div>
-										)}
-									</div>
-								</li>
-							))}
-						</ul>
-					</div>
-				</aside>
-
-				<section className="lg:col-span-3 space-y-8">
-					{revealed && (
-						<div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 text-center shadow-2xl relative overflow-hidden group">
-							<div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
-							<div className="relative z-10">
-								<h3 className="text-blue-100 font-bold text-sm uppercase tracking-[0.2em] mb-2">
-									Final Consensus
-								</h3>
-								<div className="text-6xl font-black text-white mb-2 drop-shadow-lg">
-									{calculateAverage(players.map((p) => p.vote))}
-								</div>
-								<p className="text-blue-100/80 text-sm font-medium">
-									Average Story Points
-								</p>
-							</div>
-							<div className="absolute -bottom-6 -right-6 opacity-10 transform group-hover:scale-110 transition duration-700">
-								<Spade className="w-32 h-32" />
-							</div>
-						</div>
-					)}
-
-					<div className="bg-[#1a1c2c] rounded-3xl p-8 border border-gray-800 shadow-xl relative">
-						<div className="absolute -top-4 left-10 bg-[#0f111a] px-4 py-1 rounded-full border border-gray-800">
-							<span className="text-xs font-bold text-gray-500 uppercase tracking-widest">
-								Select Your Card
-							</span>
-						</div>
-
-						<div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-							{FIBONACCI_CARDS.map((card) => (
+			{/* Main Content Area - Scrollable */}
+			<main className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4 pb-32">
+				{/* GM Settings - Max Fib */}
+				{isGM && (
+					<div className="flex items-center justify-center space-x-4 bg-[#1a1c2c] p-3 rounded-xl border border-gray-800">
+						<span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+							Max Fib:
+						</span>
+						<div className="flex space-x-2">
+							{[5, 8, 13, 21].map((num) => (
 								<button
+									key={num}
 									type="button"
-									key={card}
-									onClick={() => handleVote(card)}
-									disabled={revealed}
-									className={`
-                    relative aspect-[2/3] rounded-xl border-2 font-black text-3xl transition-all duration-300
-                    flex flex-col items-center justify-center overflow-hidden
-                    ${
-											myVote === card
-												? "bg-blue-600 border-white text-white shadow-[0_0_25px_rgba(37,99,235,0.4)] scale-105 z-10"
-												: "bg-[#24273a] border-gray-700 text-gray-400 hover:border-blue-500/50 hover:bg-[#2a2d3e] hover:text-white"
-										}
-                    ${revealed ? "opacity-40 grayscale cursor-not-allowed scale-95" : "hover:-translate-y-2 active:scale-95"}
-                  `}
+									onClick={() => handleSetMaxFib(num)}
+									className={`px-3 py-1 rounded-md text-xs font-bold transition ${maxFib === num ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-500 hover:text-gray-300"}`}
 								>
-									<span
-										className={`absolute top-2 left-2 text-sm ${myVote === card ? "opacity-50" : "opacity-20"}`}
-									>
-										{card}
-									</span>
-									<span className="relative z-10">{card}</span>
-									<span
-										className={`absolute bottom-2 right-2 text-sm rotate-180 ${myVote === card ? "opacity-50" : "opacity-20"}`}
-									>
-										{card}
-									</span>
-
-									{myVote === card && (
-										<div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent" />
-									)}
+									{num}
 								</button>
 							))}
 						</div>
 					</div>
+				)}
 
-					<div className="hidden lg:block h-64 bg-green-900/10 rounded-[100px] border-4 border-green-800/20 flex items-center justify-center relative shadow-inner overflow-hidden">
-						<div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_transparent_0%,_rgba(0,0,0,0.4)_100%)]" />
-						<Spade className="w-20 h-20 text-green-800/20" />
-
-						<div className="absolute w-full h-full flex items-center justify-center">
-							{players.map((player, index) => {
-								const angle = (index / players.length) * 2 * Math.PI;
-								const x = Math.cos(angle) * 180;
-								const y = Math.sin(angle) * 80;
-								return (
-									<div
-										key={player._id}
-										className="absolute transition-all duration-500"
-										style={{ transform: `translate(${x}px, ${y}px)` }}
-									>
-										<div
-											className={`w-12 h-12 rounded-full border-2 border-gray-800 flex items-center justify-center text-xs font-bold shadow-lg overflow-hidden ${player.vote ? "bg-green-600 border-green-400" : "bg-gray-700"}`}
-										>
-											{player.vote && !revealed
-												? "?"
-												: player.nickname[0].toUpperCase()}
-										</div>
-										<div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-bold text-gray-500 uppercase tracking-tighter">
-											{player.nickname}
-										</div>
-									</div>
-								);
-							})}
+				{/* Consensus Banner */}
+				{revealed && (
+					<div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 text-center shadow-xl shrink-0">
+						<h3 className="text-blue-100 font-bold text-[10px] uppercase tracking-widest mb-1">
+							Average
+						</h3>
+						<div className="text-4xl font-black text-white">
+							{calculateAverage(players.map((p) => p.vote))}
 						</div>
 					</div>
-				</section>
+				)}
+
+				{/* Participants Grid */}
+				<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+					{players.map((player) => (
+						<div
+							key={player._id}
+							className={`relative flex flex-col items-center p-2 rounded-xl border transition-all ${player._id === playerId ? "bg-blue-600/10 border-blue-500/50" : "bg-[#1a1c2c] border-gray-800"}`}
+						>
+							<div
+								className={`w-12 h-12 rounded-lg flex items-center justify-center mb-1 shadow-inner relative ${player.vote ? "bg-blue-600" : "bg-gray-800"}`}
+							>
+								<SpaceInvader
+									className={`w-8 h-8 ${player.vote ? "text-white" : "text-gray-600"}`}
+								/>
+								{player.vote && revealed && (
+									<div className="absolute inset-0 bg-blue-700 rounded-lg flex items-center justify-center text-lg font-black text-white animate-in zoom-in-50 duration-300">
+										{player.vote}
+									</div>
+								)}
+								{player.vote && !revealed && (
+									<div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#1a1c2c] flex items-center justify-center">
+										<div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+									</div>
+								)}
+							</div>
+							<p className="text-[10px] font-bold truncate w-full text-center text-gray-300">
+								{player.nickname} {player._id === playerId && "(You)"}
+							</p>
+							{player.isGM && (
+								<div className="absolute -top-1 -left-1 bg-yellow-500 rounded px-1 py-0.5 shadow-sm">
+									<p className="text-[6px] font-black text-black uppercase tracking-tighter">
+										GM
+									</p>
+								</div>
+							)}
+						</div>
+					))}
+				</div>
 			</main>
+
+			{/* Card Selector - Fixed at bottom */}
+			<div className="fixed bottom-0 left-0 right-0 p-4 bg-[#1a1c2c] border-t border-gray-800 z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+				<div className="max-w-md mx-auto">
+					<div className="flex justify-between items-center mb-2 px-1">
+						<span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+							{revealed ? "Voting Closed" : "Select Your Card"}
+						</span>
+						{myVote && !revealed && (
+							<span className="text-[10px] font-bold text-blue-400 animate-pulse">
+								Vote Cast: {myVote}
+							</span>
+						)}
+					</div>
+					<div className="grid grid-cols-5 gap-2">
+						{allCards.map((card) => (
+							<button
+								type="button"
+								key={card}
+								onClick={() => handleVote(card)}
+								disabled={revealed}
+								className={`
+                  h-12 rounded-lg font-black text-lg transition-all duration-200
+                  ${
+										myVote === card
+											? "bg-blue-600 text-white shadow-lg scale-105"
+											: "bg-gray-800 text-gray-400 hover:text-white active:bg-gray-700"
+									}
+                  ${revealed ? "opacity-30 grayscale cursor-not-allowed" : "active:scale-95"}
+                `}
+							>
+								{card}
+							</button>
+						))}
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }
@@ -324,6 +315,18 @@ function calculateAverage(votes: (string | null)[]) {
 	const sum = numericVotes.reduce((a, b) => a + b, 0);
 	return (sum / numericVotes.length).toFixed(1);
 }
+
+const SpaceInvader = ({ className }: { className?: string }) => (
+	<svg
+		viewBox="0 0 24 24"
+		fill="currentColor"
+		className={className}
+		aria-label="Space Invader"
+		role="img"
+	>
+		<path d="M6,1H8V3H6V1M16,1H18V3H16V1M7,4H17V5H7V4M6,5H18V6H6V5M5,6H19V7H5V6M4,7H20V12H19V13H18V14H17V15H15V14H13V13H11V14H9V15H7V14H6V13H5V12H4V7M8,8H9V11H8V8M15,8H16V11H15V8M2,11H3V14H5V15H2V11M21,11H22V14H19V15H21V11Z" />
+	</svg>
+);
 
 const Spade = ({ className }: { className?: string }) => (
 	<svg

@@ -1,0 +1,49 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - generic [ref=e4]:
+        - img "Spade Icon" [ref=e6]
+        - generic [ref=e8]:
+          - heading "test-room-1773265800612" [level=1] [ref=e9]
+          - generic [ref=e10]: 1 Players
+      - generic [ref=e12]:
+        - button [ref=e13]:
+          - img [ref=e14]
+        - generic [ref=e17]:
+          - button "Reveal" [disabled] [ref=e18]
+          - button "Reset" [ref=e19]
+    - main [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: "Max Fib:"
+        - generic [ref=e23]:
+          - button "5" [active] [ref=e24]
+          - button "8" [ref=e25]
+          - button "13" [ref=e26]
+          - button "21" [ref=e27]
+      - generic [ref=e29]:
+        - img "Space Invader" [ref=e31]
+        - paragraph [ref=e33]: Tester (You)
+        - paragraph [ref=e35]: GM
+    - generic [ref=e37]:
+      - generic [ref=e39]: Select Your Card
+      - generic [ref=e40]:
+        - button "0" [ref=e41]
+        - button "1" [ref=e42]
+        - button "2" [ref=e43]
+        - button "3" [ref=e44]
+        - button "5" [ref=e45]
+        - button "8" [ref=e46]
+        - button "?" [ref=e47]
+        - button "☕" [ref=e48]
+  - generic:
+    - contentinfo:
+      - button "Open TanStack Router Devtools" [ref=e49] [cursor=pointer]:
+        - generic [ref=e50]:
+          - img [ref=e52]
+          - img [ref=e87]
+        - generic [ref=e121]: "-"
+        - generic [ref=e122]: TanStack Router
+```
