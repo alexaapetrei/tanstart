@@ -44,11 +44,11 @@ function PokerRoom() {
 
 	useEffect(() => {
 		if (!joined && roomData !== undefined) {
-			joinRoom({ roomName, nickname })
-				.then(({ playerId }) => {
-					setPlayerId(playerId);
+			joinRoom({ roomName, nickname, playerId: playerId as any })
+				.then(({ playerId: returnedPlayerId }) => {
+					setPlayerId(returnedPlayerId);
 					setJoined(true);
-					localStorage.setItem(`poker_playerId_${roomName}`, playerId);
+					localStorage.setItem(`poker_playerId_${roomName}`, returnedPlayerId);
 				})
 				.catch((err) => {
 					if (err.message.includes("Nickname is already taken")) {
@@ -56,7 +56,7 @@ function PokerRoom() {
 					}
 				});
 		}
-	}, [joined, roomData, roomName, nickname, joinRoom]);
+	}, [joined, roomData, roomName, nickname, joinRoom, playerId]);
 
 	useEffect(() => {
 		if (joinError === "taken") {

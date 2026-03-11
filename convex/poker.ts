@@ -21,7 +21,11 @@ export const getRoom = query({
 });
 
 export const joinRoom = mutation({
-  args: { roomName: v.string(), nickname: v.string() },
+  args: {
+    roomName: v.string(),
+    nickname: v.string(),
+    playerId: v.optional(v.id("players"))
+  },
   handler: async (ctx, args) => {
     let room = await ctx.db
       .query("rooms")
@@ -42,6 +46,16 @@ export const joinRoom = mutation({
       .withIndex("by_room", (q) => q.eq("roomId", room!._id))
       .collect();
 
+    // Re-authentication logic
+    if (args.playerId) {
+      const existingPlayer = await ctx.db.get(args.playerId);
+      if (existingPlayer && existingPlayer.roomId === room._id) {
+        // Player exists and is in the correct room, update their heartbeat and return
+        await ctx.db.patch(args.playerId, { lastSeen: Date.now() });
+        return { roomId: room._id, playerId: args.playerId };
+      }
+    }
+
     const existingPlayerWithSameName = existingPlayers.find(
       (p) => p.nickname.toLowerCase() === args.nickname.toLowerCase()
     );
@@ -58,7 +72,7 @@ export const joinRoom = mutation({
 
     const isGM = existingPlayers.length === 0;
 
-    const playerId = await ctx.db.insert("players", {
+    const newPlayerId = await ctx.db.insert("players", {
       roomId: room._id,
       nickname: args.nickname,
       vote: null,
@@ -66,7 +80,7 @@ export const joinRoom = mutation({
       lastSeen: Date.now(),
     });
 
-    return { roomId: room._id, playerId };
+    return { roomId: room._id, playerId: newPlayerId };
   },
 });
 
