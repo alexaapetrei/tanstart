@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vinxi dev",
     "start": "vinxi start",
-    "build": "convex deploy --cmd \"vinxi build\"",
+    "build": "npx convex deploy --cmd \"vinxi build\"",
     "serve": "vite preview",
     "test": "vitest run",
     "format": "biome format",
