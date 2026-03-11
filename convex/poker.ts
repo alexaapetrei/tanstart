@@ -32,6 +32,7 @@ export const joinRoom = mutation({
       const roomId = await ctx.db.insert("rooms", {
         name: args.roomName,
         revealed: false,
+        maxFib: 8,
       });
       room = (await ctx.db.get(roomId))!;
     }
@@ -40,6 +41,20 @@ export const joinRoom = mutation({
       .query("players")
       .withIndex("by_room", (q) => q.eq("roomId", room!._id))
       .collect();
+
+    const existingPlayerWithSameName = existingPlayers.find(
+      (p) => p.nickname.toLowerCase() === args.nickname.toLowerCase()
+    );
+
+    if (existingPlayerWithSameName) {
+      // Check if it's the same player (e.g. within 30 seconds of last seen)
+      if (Date.now() - existingPlayerWithSameName.lastSeen < 30000) {
+        throw new Error("Nickname is already taken");
+      } else {
+        // Assume old player timed out but cleanOldPlayers hasn't run yet
+        await ctx.db.delete(existingPlayerWithSameName._id);
+      }
+    }
 
     const isGM = existingPlayers.length === 0;
 
@@ -52,6 +67,13 @@ export const joinRoom = mutation({
     });
 
     return { roomId: room._id, playerId };
+  },
+});
+
+export const setMaxFib = mutation({
+  args: { roomId: v.id("rooms"), maxFib: v.number() },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.roomId, { maxFib: args.maxFib });
   },
 });
 

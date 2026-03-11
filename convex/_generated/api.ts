@@ -7,5 +7,6 @@ export const api: any = {
     reset: "poker:reset",
     heartbeat: "poker:heartbeat",
     cleanOldPlayers: "poker:cleanOldPlayers",
+    setMaxFib: "poker:setMaxFib",
   }
 };

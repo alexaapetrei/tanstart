@@ -1,14 +1,22 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Spade } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
+
+const landingSearchSchema = z.object({
+	roomId: z.string().optional(),
+	error: z.string().optional(),
+});
 
 export const Route = createFileRoute("/")({
 	component: LandingPage,
+	validateSearch: landingSearchSchema,
 });
 
 function LandingPage() {
+	const { roomId: initialRoomId, error } = Route.useSearch();
 	const [nickname, setNickname] = useState("");
-	const [roomId, setRoomId] = useState("");
+	const [roomId, setRoomId] = useState(initialRoomId || "");
 	const navigate = useNavigate();
 
 	const handleJoin = () => {
@@ -32,7 +40,13 @@ function LandingPage() {
 				<h1 className="text-3xl font-extrabold mb-8 text-center text-white tracking-tight">
 					Planning Poker
 				</h1>
-				<div className="space-y-6">
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						handleJoin();
+					}}
+					className="space-y-6"
+				>
 					<div>
 						<label
 							htmlFor="nickname"
@@ -45,9 +59,15 @@ function LandingPage() {
 							id="nickname"
 							value={nickname}
 							onChange={(e) => setNickname(e.target.value)}
-							className="w-full bg-[#1a1c2c] text-white rounded-xl border-2 border-gray-700 focus:border-blue-500 focus:ring-0 p-3.5 transition-all outline-none"
+							className={`w-full bg-[#1a1c2c] text-white rounded-xl border-2 ${error ? "border-red-500" : "border-gray-700"} focus:border-blue-500 focus:ring-0 p-3.5 transition-all outline-none`}
 							placeholder="Your name"
+							required
 						/>
+						{error && (
+							<p className="text-red-500 text-xs mt-2 ml-1 font-medium">
+								{error}
+							</p>
+						)}
 					</div>
 					<div>
 						<label
@@ -63,17 +83,17 @@ function LandingPage() {
 							onChange={(e) => setRoomId(e.target.value)}
 							className="w-full bg-[#1a1c2c] text-white rounded-xl border-2 border-gray-700 focus:border-blue-500 focus:ring-0 p-3.5 transition-all outline-none"
 							placeholder="e.g. Sprint-42"
+							required
 						/>
 					</div>
 					<button
-						type="button"
-						onClick={handleJoin}
-						disabled={!nickname || !roomId}
+						type="submit"
+						disabled={!nickname.trim() || !roomId.trim()}
 						className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-500 transition duration-300 disabled:bg-gray-700 disabled:text-gray-500 shadow-lg shadow-blue-600/20 active:scale-95 transform disabled:scale-100"
 					>
 						Enter Room
 					</button>
-				</div>
+				</form>
 			</div>
 		</div>
 	);
