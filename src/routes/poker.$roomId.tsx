@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
-import { AlertCircle, Copy, Eye, Info, LogOut, RefreshCw, Users } from "lucide-react";
+import { Check, Copy, Eye, LogOut, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { z } from "zod";
 import { api } from "../../convex/_generated/api";
 
 export const Route = createFileRoute("/poker/$roomId")({
@@ -33,13 +32,13 @@ function PokerRoom() {
 
 	const [playerId, setPlayerId] = useState<any>(() => {
 		if (typeof window !== "undefined") {
-			const saved = localStorage.getItem(`poker_playerId_${roomName}`);
-			return saved;
+			return localStorage.getItem(`poker_playerId_${roomName}`);
 		}
 		return null;
 	});
 	const [joined, setJoined] = useState(false);
 	const [joinError, setJoinError] = useState<string | null>(null);
+	const [copied, setCopied] = useState(false);
 
 	const navigate = Route.useNavigate();
 
@@ -63,10 +62,7 @@ function PokerRoom() {
 		if (joinError === "taken") {
 			navigate({
 				to: "/",
-				search: {
-					roomId: roomName,
-					error: "Nickname is already taken",
-				},
+				search: { roomId: roomName, error: "Nickname is already taken" },
 			});
 		}
 	}, [joinError, navigate, roomName]);
@@ -82,27 +78,20 @@ function PokerRoom() {
 	}, [playerId, roomData?._id, heartbeatMutation, cleanOldPlayersMutation]);
 
 	const handleVote = (vote: string) => {
-		if (playerId) {
-			voteMutation({ playerId: playerId as any, vote });
-		}
+		if (playerId) voteMutation({ playerId: playerId as any, vote });
 	};
 
 	const handleReveal = () => {
-		if (roomData?._id) {
-			revealMutation({ roomId: roomData._id, revealed: true });
-		}
+		if (roomData?._id) revealMutation({ roomId: roomData._id, revealed: true });
 	};
 
 	const handleReset = () => {
-		if (roomData?._id) {
-			resetMutation({ roomId: roomData._id });
-		}
+		if (roomData?._id) resetMutation({ roomId: roomData._id });
 	};
 
 	const handleSetMaxFib = (max: number) => {
-		if (roomData?._id && isGM) {
+		if (roomData?._id && isGM)
 			setMaxFibMutation({ roomId: roomData._id, maxFib: max });
-		}
 	};
 
 	const handleSetNickname = (e: React.FormEvent<HTMLFormElement>) => {
@@ -116,37 +105,53 @@ function PokerRoom() {
 	};
 
 	const handleExitRoom = async () => {
-		if (playerId) {
-			await leaveRoomMutation({ playerId: playerId as any });
-		}
+		if (playerId) await leaveRoomMutation({ playerId: playerId as any });
 		localStorage.removeItem(`poker_playerId_${roomName}`);
 		navigate({ to: "/" });
 	};
 
 	const copyRoomLink = () => {
 		navigator.clipboard.writeText(window.location.href);
-		alert("Room link copied to clipboard!");
+		setCopied(true);
+		setTimeout(() => setCopied(false), 2000);
 	};
 
+	// ── Nickname entry ──────────────────────────────────────────────────────────
 	if (!nickname) {
 		return (
-			<div className="min-h-screen bg-[#1a1c2c] flex items-center justify-center p-4">
-				<div className="bg-[#2a2d3e] p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700">
-					<h2 className="text-xl font-bold text-white mb-6 text-center">
-						Enter your nickname to join
+			<div className="min-h-screen bg-[#070a13] flex items-center justify-center p-4">
+				<div
+					className="absolute inset-0 pointer-events-none"
+					style={{
+						backgroundImage: `linear-gradient(rgba(99,102,241,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.05) 1px, transparent 1px)`,
+						backgroundSize: "52px 52px",
+					}}
+				/>
+				<div className="relative bg-[#0d1120] border border-slate-800/70 p-8 rounded-2xl shadow-2xl w-full max-w-sm">
+					<div className="flex justify-center mb-5">
+						<div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-3 rounded-xl shadow-lg">
+							<SpadeIcon className="w-6 h-6 text-white" />
+						</div>
+					</div>
+					<h2 className="text-lg font-black text-white text-center mb-0.5">
+						Join{" "}
+						<span className="text-indigo-400">{roomName}</span>
 					</h2>
-					<form onSubmit={handleSetNickname} className="space-y-4">
+					<p className="text-slate-600 text-xs text-center mb-6">
+						Enter your name to continue
+					</p>
+					<form onSubmit={handleSetNickname} className="space-y-3">
 						<input
 							type="text"
 							name="nickname"
 							autoFocus
-							className="w-full bg-[#1a1c2c] text-white rounded-xl border-2 border-gray-700 focus:border-blue-500 focus:ring-0 p-3.5 transition-all outline-none"
+							className="w-full bg-[#070a13] text-white rounded-xl border border-slate-800 focus:border-indigo-500 p-3.5 transition-all outline-none placeholder-slate-700 text-sm font-medium"
 							placeholder="Your name"
 							required
 						/>
 						<button
 							type="submit"
-							className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-500 transition active:scale-95"
+							className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl transition-all active:scale-95 text-sm"
 						>
 							Join Room
 						</button>
@@ -156,90 +161,113 @@ function PokerRoom() {
 		);
 	}
 
+	// ── Loading ─────────────────────────────────────────────────────────────────
 	if (roomData === undefined || !joined) {
 		return (
-			<div className="min-h-screen bg-[#1a1c2c] flex items-center justify-center">
-				<div className="text-center">
-					<div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-					<p className="text-gray-400 font-medium animate-pulse">
-						Entering the poker room...
+			<div className="min-h-screen bg-[#070a13] flex items-center justify-center">
+				<div className="text-center space-y-4">
+					<div className="relative mx-auto w-14 h-14">
+						<div className="absolute inset-0 rounded-full border-[3px] border-slate-800" />
+						<div className="absolute inset-0 rounded-full border-[3px] border-indigo-500 border-t-transparent animate-spin" />
+					</div>
+					<p className="text-slate-600 text-sm font-medium">
+						Joining room…
 					</p>
 				</div>
 			</div>
 		);
 	}
 
+	// ── Room not found ──────────────────────────────────────────────────────────
 	if (roomData === null) {
 		return (
-			<div className="min-h-screen bg-[#1a1c2c] flex items-center justify-center">
-				<div className="text-center">
-					<p className="text-white">Room not found.</p>
+			<div className="min-h-screen bg-[#070a13] flex items-center justify-center">
+				<div className="text-center space-y-3">
+					<p className="text-slate-300 font-bold">Room not found</p>
+					<button
+						type="button"
+						onClick={() => navigate({ to: "/" })}
+						className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-2 transition-colors"
+					>
+						Back to home
+					</button>
 				</div>
 			</div>
 		);
 	}
 
+	// ── Derived state ───────────────────────────────────────────────────────────
 	const players = roomData.players;
 	const self = players.find((p) => p._id === playerId);
 	const isGM = self?.isGM ?? false;
 	const myVote = self?.vote ?? null;
 	const revealed = roomData.revealed;
 	const maxFib = roomData.maxFib ?? 8;
+	const votedCount = players.filter((p) => p.vote).length;
 
 	const fibCards = FIBONACCI_SEQUENCE.filter((n) => Number(n) <= maxFib);
 	const allCards = [...fibCards, ...SPECIAL_CARDS];
 
+	// ── Main room UI ────────────────────────────────────────────────────────────
 	return (
-		<div className="min-h-screen bg-[#0f111a] text-gray-100 font-sans selection:bg-blue-500/30 flex flex-col overflow-hidden">
+		<div className="min-h-screen bg-[#070a13] text-slate-100 flex flex-col">
 			{/* Header */}
-			<header className="bg-[#1a1c2c] border-b border-gray-800 px-4 py-3 flex justify-between items-center z-20 shadow-lg shrink-0">
-				<div className="flex items-center space-x-3">
-					<div className="bg-blue-600 p-1.5 rounded-lg shadow-inner shrink-0">
-						<Spade className="w-4 h-4 text-white" />
+			<header className="sticky top-0 z-20 bg-[#0d1120]/95 backdrop-blur-md border-b border-slate-800/60 px-4 py-3 flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2.5 min-w-0">
+					<div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-1.5 rounded-lg shrink-0">
+						<SpadeIcon className="w-4 h-4 text-white" />
 					</div>
 					<div className="min-w-0">
-						<h1 className="text-sm font-bold truncate leading-tight">
+						<h1 className="text-sm font-black text-white truncate leading-tight">
 							{roomName}
 						</h1>
-						<div className="flex items-center text-[10px] text-gray-400 leading-tight">
-							<span className="w-1.5 h-1.5 rounded-full mr-1 bg-green-500" />
-							{players.length} Players
+						<div className="flex items-center gap-1 text-[10px] text-slate-600 leading-tight">
+							<span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+							{players.length}{" "}
+							{players.length === 1 ? "player" : "players"}
 						</div>
 					</div>
 				</div>
 
-				<div className="flex items-center space-x-2 shrink-0">
+				<div className="flex items-center gap-1 shrink-0">
 					<button
 						type="button"
 						onClick={handleExitRoom}
-						title="Exit room"
-						className="p-2 bg-gray-800 hover:bg-red-900/60 rounded-lg text-gray-400 hover:text-red-400 transition border border-gray-700"
+						title="Leave room"
+						className="p-2 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
 					>
 						<LogOut className="w-4 h-4" />
 					</button>
 					<button
 						type="button"
 						onClick={copyRoomLink}
-						className="p-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-400 transition border border-gray-700"
+						title="Copy room link"
+						className="p-2 rounded-lg text-slate-600 hover:text-slate-300 hover:bg-slate-800 transition-colors"
 					>
-						<Copy className="w-4 h-4" />
+						{copied ? (
+							<Check className="w-4 h-4 text-emerald-400" />
+						) : (
+							<Copy className="w-4 h-4" />
+						)}
 					</button>
 
 					{isGM && (
-						<div className="flex space-x-2">
+						<div className="flex gap-1.5 ml-1 pl-1.5 border-l border-slate-800">
 							<button
 								type="button"
 								onClick={handleReveal}
-								disabled={revealed || players.every((p) => !p.vote)}
-								className="bg-green-600 hover:bg-green-500 disabled:bg-gray-800 disabled:text-gray-500 px-3 py-1.5 rounded-lg text-xs transition font-bold shadow-lg"
+								disabled={revealed || votedCount === 0}
+								className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors shadow-sm"
 							>
+								<Eye className="w-3.5 h-3.5" />
 								Reveal
 							</button>
 							<button
 								type="button"
 								onClick={handleReset}
-								className="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded-lg text-xs transition font-bold shadow-lg"
+								className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
 							>
+								<RotateCcw className="w-3.5 h-3.5" />
 								Reset
 							</button>
 						</div>
@@ -247,21 +275,25 @@ function PokerRoom() {
 				</div>
 			</header>
 
-			{/* Main Content Area - Scrollable */}
-			<main className="flex-1 overflow-y-auto p-4 flex flex-col space-y-4 pb-32">
-				{/* GM Settings - Max Fib */}
+			{/* Main scrollable area */}
+			<main className="flex-1 overflow-y-auto p-4 pb-52 space-y-4">
+				{/* GM: max scale picker */}
 				{isGM && (
-					<div className="flex items-center justify-center space-x-4 bg-[#1a1c2c] p-3 rounded-xl border border-gray-800">
-						<span className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-							Max Fib:
+					<div className="flex items-center gap-3 bg-[#0d1120] border border-slate-800/60 rounded-xl px-4 py-2.5">
+						<span className="text-[10px] font-bold text-slate-700 uppercase tracking-widest shrink-0">
+							Max Scale
 						</span>
-						<div className="flex space-x-2">
+						<div className="flex gap-1.5">
 							{[5, 8, 13, 21].map((num) => (
 								<button
 									key={num}
 									type="button"
 									onClick={() => handleSetMaxFib(num)}
-									className={`px-3 py-1 rounded-md text-xs font-bold transition ${maxFib === num ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-500 hover:text-gray-300"}`}
+									className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+										maxFib === num
+											? "bg-indigo-600 text-white shadow-sm"
+											: "text-slate-700 hover:text-slate-400 hover:bg-slate-800"
+									}`}
 								>
 									{num}
 								</button>
@@ -270,90 +302,152 @@ function PokerRoom() {
 					</div>
 				)}
 
-				{/* Consensus Banner */}
+				{/* Voting progress bar */}
+				{!revealed && (
+					<div className="flex items-center gap-3">
+						<div className="flex-1 h-0.5 bg-slate-800 rounded-full overflow-hidden">
+							<div
+								className="h-full bg-gradient-to-r from-indigo-600 to-violet-500 rounded-full transition-all duration-700"
+								style={{
+									width: `${players.length ? (votedCount / players.length) * 100 : 0}%`,
+								}}
+							/>
+						</div>
+						<span className="text-[10px] font-bold text-slate-700 shrink-0 tabular-nums">
+							{votedCount}/{players.length} voted
+						</span>
+					</div>
+				)}
+
+				{/* Result banner */}
 				{revealed && (
-					<div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-4 text-center shadow-xl shrink-0">
-						<h3 className="text-blue-100 font-bold text-[10px] uppercase tracking-widest mb-1">
-							Average
-						</h3>
-						<div className="text-4xl font-black text-white">
+					<div className="relative overflow-hidden rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-600/15 to-violet-600/10 p-5 text-center">
+						<div
+							className="absolute inset-0 pointer-events-none"
+							style={{
+								backgroundImage: `radial-gradient(circle at 50% 0%, rgba(99,102,241,0.15) 0%, transparent 60%)`,
+							}}
+						/>
+						<p className="relative text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-1.5">
+							Average Score
+						</p>
+						<div className="relative text-5xl font-black text-white leading-none">
 							{calculateAverage(players.map((p) => p.vote))}
 						</div>
 					</div>
 				)}
 
-				{/* Participants Grid */}
-				<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-					{players.map((player) => (
-						<div
-							key={player._id}
-							className={`relative flex flex-col items-center p-2 rounded-xl border transition-all ${player._id === playerId ? "bg-blue-600/10 border-blue-500/50" : "bg-[#1a1c2c] border-gray-800"}`}
-						>
+				{/* Players grid */}
+				<div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+					{players.map((player) => {
+						const isMe = player._id === playerId;
+						const hasVoted = !!player.vote;
+						const showVote = revealed && player.vote !== null;
+
+						return (
 							<div
-								className={`w-12 h-12 rounded-lg flex items-center justify-center mb-1 shadow-inner relative ${player.vote ? "bg-blue-600" : "bg-gray-800"}`}
+								key={player._id}
+								className={`relative flex flex-col rounded-2xl border overflow-hidden transition-all duration-300 ${
+									isMe
+										? "border-indigo-500/50 shadow-lg shadow-indigo-500/10"
+										: showVote
+											? "border-slate-300/20"
+											: "border-slate-800/60"
+								} ${showVote ? "bg-white" : "bg-[#0d1120]"}`}
 							>
-								<SpaceInvader
-									className={`w-8 h-8 ${player.vote ? "text-white" : "text-gray-600"}`}
-								/>
-								{player.vote && revealed && (
-									<div className="absolute inset-0 bg-blue-700 rounded-lg flex items-center justify-center text-lg font-black text-white animate-in zoom-in-50 duration-300">
-										{player.vote}
-									</div>
-								)}
-								{player.vote && !revealed && (
-									<div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-[#1a1c2c] flex items-center justify-center">
-										<div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-									</div>
-								)}
-							</div>
-							<p className="text-[10px] font-bold truncate w-full text-center text-gray-300">
-								{player.nickname} {player._id === playerId && "(You)"}
-							</p>
-							{player.isGM && (
-								<div className="absolute -top-1 -left-1 bg-yellow-500 rounded px-1 py-0.5 shadow-sm">
-									<p className="text-[6px] font-black text-black uppercase tracking-tighter">
+								{/* GM crown badge */}
+								{player.isGM && (
+									<div className="absolute top-1.5 left-1.5 z-10 bg-amber-400 text-black text-[7px] font-black uppercase tracking-tight px-1.5 py-0.5 rounded-md leading-none">
 										GM
+									</div>
+								)}
+
+								{/* Card body */}
+								<div
+									className={`flex flex-1 items-center justify-center py-4 min-h-[72px] ${
+										showVote ? "bg-white" : ""
+									}`}
+								>
+									{showVote ? (
+										<span className="text-3xl font-black text-slate-800 leading-none">
+											{player.vote}
+										</span>
+									) : (
+										<div className="relative">
+											<SpaceInvader
+												className={`w-9 h-9 transition-colors ${
+													hasVoted ? "text-indigo-400" : "text-slate-800"
+												}`}
+											/>
+											{hasVoted && !revealed && (
+												<span className="absolute -top-1 -right-1 flex h-3 w-3">
+													<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+													<span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-[#0d1120]" />
+												</span>
+											)}
+										</div>
+									)}
+								</div>
+
+								{/* Name */}
+								<div
+									className={`px-2 pb-2.5 text-center ${showVote ? "bg-white" : ""}`}
+								>
+									<p
+										className={`text-[9px] font-bold truncate leading-tight ${
+											showVote
+												? "text-slate-400"
+												: isMe
+													? "text-indigo-400"
+													: "text-slate-600"
+										}`}
+									>
+										{player.nickname}
+										{isMe && " · me"}
 									</p>
 								</div>
-							)}
-						</div>
-					))}
+							</div>
+						);
+					})}
 				</div>
 			</main>
 
-			{/* Card Selector - Fixed at bottom */}
-			<div className="fixed bottom-0 left-0 right-0 p-4 bg-[#1a1c2c] border-t border-gray-800 z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-				<div className="max-w-md mx-auto">
-					<div className="flex justify-between items-center mb-2 px-1">
-						<span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-							{revealed ? "Voting Closed" : "Select Your Card"}
+			{/* Fixed card tray */}
+			<div className="fixed bottom-0 left-0 right-0 z-30 bg-[#0d1120]/95 backdrop-blur-md border-t border-slate-800/60">
+				<div className="max-w-lg mx-auto px-4 pt-3 pb-6">
+					<div className="flex items-center justify-between mb-3 px-0.5">
+						<span className="text-[10px] font-bold text-slate-700 uppercase tracking-widest">
+							{revealed ? "Voting closed" : "Pick a card"}
 						</span>
 						{myVote && !revealed && (
-							<span className="text-[10px] font-bold text-blue-400 animate-pulse">
-								Vote Cast: {myVote}
+							<span className="text-[10px] font-bold text-indigo-400 tabular-nums">
+								Selected:{" "}
+								<span className="text-indigo-300">{myVote}</span>
 							</span>
 						)}
 					</div>
+
 					<div className="grid grid-cols-5 gap-2">
-						{allCards.map((card) => (
-							<button
-								type="button"
-								key={card}
-								onClick={() => handleVote(card)}
-								disabled={revealed}
-								className={`
-                  h-12 rounded-lg font-black text-lg transition-all duration-200
-                  ${
-										myVote === card
-											? "bg-blue-600 text-white shadow-lg scale-105"
-											: "bg-gray-800 text-gray-400 hover:text-white active:bg-gray-700"
-									}
-                  ${revealed ? "opacity-30 grayscale cursor-not-allowed" : "active:scale-95"}
-                `}
-							>
-								{card}
-							</button>
-						))}
+						{allCards.map((card) => {
+							const isSelected = myVote === card;
+							return (
+								<button
+									type="button"
+									key={card}
+									onClick={() => handleVote(card)}
+									disabled={revealed}
+									className={`relative h-14 rounded-xl text-lg font-black transition-all duration-150 border select-none ${
+										isSelected
+											? "bg-indigo-600 text-white border-indigo-400/60 shadow-lg shadow-indigo-500/25 -translate-y-2 scale-105 z-10"
+											: revealed
+												? "bg-[#0d1120] text-slate-800 border-slate-800/40 cursor-not-allowed"
+												: "bg-slate-100 text-slate-800 border-slate-200/20 shadow-md hover:-translate-y-1 hover:bg-white hover:shadow-lg active:scale-95"
+									}`}
+								>
+									{card}
+								</button>
+							);
+						})}
 					</div>
 				</div>
 			</div>
@@ -366,7 +460,7 @@ function calculateAverage(votes: (string | null)[]) {
 		.filter((v): v is string => v !== null && !Number.isNaN(Number(v)))
 		.map(Number);
 
-	if (numericVotes.length === 0) return "0.0";
+	if (numericVotes.length === 0) return "—";
 	const sum = numericVotes.reduce((a, b) => a + b, 0);
 	return (sum / numericVotes.length).toFixed(1);
 }
@@ -383,16 +477,15 @@ const SpaceInvader = ({ className }: { className?: string }) => (
 	</svg>
 );
 
-const Spade = ({ className }: { className?: string }) => (
+const SpadeIcon = ({ className }: { className?: string }) => (
 	<svg
 		viewBox="0 0 24 24"
 		fill="currentColor"
-		stroke="none"
 		className={className}
-		aria-label="Spade Icon"
+		aria-label="Spade"
 		role="img"
 	>
-		<title>Spade Icon</title>
+		<title>Spade</title>
 		<path d="M12 2C9.5 2 7.5 4 7.5 6.5C7.5 7.8 8.1 8.9 9 9.7C7.3 10.5 6 12.1 6 14C6 16.8 8.2 19 11 19V22H13V19C15.8 19 18 16.8 18 14C18 12.1 16.7 10.5 15 9.7C15.9 8.9 16.5 7.8 16.5 6.5C16.5 4 14.5 2 12 2Z" />
 	</svg>
 );
