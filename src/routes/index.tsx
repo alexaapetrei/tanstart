@@ -20,11 +20,13 @@ function LandingPage() {
 	const navigate = useNavigate();
 
 	const handleJoin = () => {
-		if (nickname && roomId) {
+		const trimmedNickname = nickname.trim();
+		const trimmedRoomId = roomId.trim();
+		if (trimmedNickname && trimmedRoomId) {
+			localStorage.setItem("poker_nickname", trimmedNickname);
 			navigate({
 				to: "/poker/$roomId",
-				params: { roomId },
-				search: { nickname },
+				params: { roomId: trimmedRoomId },
 			});
 		}
 	};
