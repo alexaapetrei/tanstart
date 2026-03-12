@@ -8,5 +8,7 @@ export const api: any = {
     heartbeat: "poker:heartbeat",
     cleanOldPlayers: "poker:cleanOldPlayers",
     setMaxFib: "poker:setMaxFib",
+    leaveRoom: "poker:leaveRoom",
+    updatePlayerName: "poker:updatePlayerName",
   }
 };
