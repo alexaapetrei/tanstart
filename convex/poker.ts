@@ -21,7 +21,11 @@ export const getRoom = query({
 });
 
 export const joinRoom = mutation({
-  args: { roomName: v.string(), nickname: v.string() },
+  args: {
+    roomName: v.string(),
+    nickname: v.string(),
+    playerId: v.optional(v.id("players")),
+  },
   handler: async (ctx, args) => {
     let room = await ctx.db
       .query("rooms")
@@ -33,8 +37,22 @@ export const joinRoom = mutation({
         name: args.roomName,
         revealed: false,
         maxFib: 8,
+        lastInteraction: Date.now(),
       });
       room = (await ctx.db.get(roomId))!;
+    } else {
+      await ctx.db.patch(room._id, { lastInteraction: Date.now() });
+    }
+
+    if (args.playerId) {
+      const existingPlayer = await ctx.db.get(args.playerId);
+      if (existingPlayer && existingPlayer.roomId === room._id) {
+        // Just update last seen
+        await ctx.db.patch(existingPlayer._id, {
+          lastSeen: Date.now(),
+        });
+        return { roomId: room._id, playerId: existingPlayer._id };
+      }
     }
 
     const existingPlayers = await ctx.db
@@ -42,25 +60,22 @@ export const joinRoom = mutation({
       .withIndex("by_room", (q) => q.eq("roomId", room!._id))
       .collect();
 
-    const existingPlayerWithSameName = existingPlayers.find(
-      (p) => p.nickname.toLowerCase() === args.nickname.toLowerCase()
-    );
-
-    if (existingPlayerWithSameName) {
-      // Check if it's the same player (e.g. within 30 seconds of last seen)
-      if (Date.now() - existingPlayerWithSameName.lastSeen < 30000) {
-        throw new Error("Nickname is already taken");
-      } else {
-        // Assume old player timed out but cleanOldPlayers hasn't run yet
-        await ctx.db.delete(existingPlayerWithSameName._id);
-      }
+    let finalNickname = args.nickname;
+    let counter = 2;
+    while (
+      existingPlayers.some(
+        (p) => p.nickname.toLowerCase() === finalNickname.toLowerCase()
+      )
+    ) {
+      finalNickname = `${args.nickname} ${counter}`;
+      counter++;
     }
 
     const isGM = existingPlayers.length === 0;
 
     const playerId = await ctx.db.insert("players", {
       roomId: room._id,
-      nickname: args.nickname,
+      nickname: finalNickname,
       vote: null,
       isGM,
       lastSeen: Date.now(),
@@ -73,28 +88,44 @@ export const joinRoom = mutation({
 export const setMaxFib = mutation({
   args: { roomId: v.id("rooms"), maxFib: v.number() },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.roomId, { maxFib: args.maxFib });
+    await ctx.db.patch(args.roomId, {
+      maxFib: args.maxFib,
+      lastInteraction: Date.now(),
+    });
   },
 });
 
 export const vote = mutation({
   args: { playerId: v.id("players"), vote: v.union(v.string(), v.null()) },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.playerId, { vote: args.vote, lastSeen: Date.now() });
+    const player = await ctx.db.get(args.playerId);
+    if (player) {
+      await ctx.db.patch(args.playerId, {
+        vote: args.vote,
+        lastSeen: Date.now(),
+      });
+      await ctx.db.patch(player.roomId, { lastInteraction: Date.now() });
+    }
   },
 });
 
 export const reveal = mutation({
   args: { roomId: v.id("rooms"), revealed: v.boolean() },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.roomId, { revealed: args.revealed });
+    await ctx.db.patch(args.roomId, {
+      revealed: args.revealed,
+      lastInteraction: Date.now(),
+    });
   },
 });
 
 export const reset = mutation({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.roomId, { revealed: false });
+    await ctx.db.patch(args.roomId, {
+      revealed: false,
+      lastInteraction: Date.now(),
+    });
     const players = await ctx.db
       .query("players")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
@@ -102,6 +133,41 @@ export const reset = mutation({
     for (const player of players) {
       await ctx.db.patch(player._id, { vote: null });
     }
+  },
+});
+
+export const updatePlayerName = mutation({
+  args: {
+    playerId: v.id("players"),
+    newName: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const player = await ctx.db.get(args.playerId);
+    if (!player) throw new Error("Player not found");
+
+    const existingPlayers = await ctx.db
+      .query("players")
+      .withIndex("by_room", (q) => q.eq("roomId", player.roomId))
+      .collect();
+
+    let finalNickname = args.newName;
+    let counter = 2;
+    while (
+      existingPlayers.some(
+        (p) =>
+          p.nickname.toLowerCase() === finalNickname.toLowerCase() &&
+          p._id !== args.playerId
+      )
+    ) {
+      finalNickname = `${args.newName} ${counter}`;
+      counter++;
+    }
+
+    await ctx.db.patch(args.playerId, {
+      nickname: finalNickname,
+      lastSeen: Date.now(),
+    });
+    await ctx.db.patch(player.roomId, { lastInteraction: Date.now() });
   },
 });
 
@@ -121,10 +187,11 @@ export const cleanOldPlayers = mutation({
       .collect();
 
     const now = Date.now();
-    const timeout = 30000; // 30 seconds
+    const playerTimeout = 300000; // 5 minutes
+    const roomTimeout = 3600000; // 1 hour
 
     for (const player of players) {
-      if (now - player.lastSeen > timeout) {
+      if (now - player.lastSeen > playerTimeout) {
         await ctx.db.delete(player._id);
 
         // If the GM left, assign a new GM
@@ -136,12 +203,23 @@ export const cleanOldPlayers = mutation({
 
           if (remainingPlayers.length > 0) {
             await ctx.db.patch(remainingPlayers[0]._id, { isGM: true });
-          } else {
-            // Delete room if no players left?
-            // Optional: await ctx.db.delete(args.roomId);
           }
         }
       }
+    }
+
+    // Check if room itself should be deleted due to inactivity
+    const room = await ctx.db.get(args.roomId);
+    if (room && now - room.lastInteraction > roomTimeout) {
+      // Delete all remaining players and the room
+      const remainingPlayers = await ctx.db
+        .query("players")
+        .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+        .collect();
+      for (const p of remainingPlayers) {
+        await ctx.db.delete(p._id);
+      }
+      await ctx.db.delete(args.roomId);
     }
   },
 });

@@ -5,13 +5,8 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { api } from "../../convex/_generated/api";
 
-const pokerSearchSchema = z.object({
-	nickname: z.string(),
-});
-
 export const Route = createFileRoute("/poker/$roomId")({
 	component: PokerRoom,
-	validateSearch: pokerSearchSchema,
 });
 
 const FIBONACCI_SEQUENCE = ["0", "1", "2", "3", "5", "8", "13", "21"];
@@ -19,7 +14,12 @@ const SPECIAL_CARDS = ["?", "☕"];
 
 function PokerRoom() {
 	const { roomId: roomName } = Route.useParams();
-	const { nickname } = Route.useSearch();
+	const [nickname, setNickname] = useState<string | null>(() => {
+		if (typeof window !== "undefined") {
+			return localStorage.getItem("poker_nickname");
+		}
+		return null;
+	});
 
 	const roomData = useQuery(api.poker.getRoom, { name: roomName });
 	const joinRoom = useMutation(api.poker.joinRoom);
@@ -30,7 +30,7 @@ function PokerRoom() {
 	const cleanOldPlayersMutation = useMutation(api.poker.cleanOldPlayers);
 	const setMaxFibMutation = useMutation(api.poker.setMaxFib);
 
-	const [playerId, setPlayerId] = useState<string | null>(() => {
+	const [playerId, setPlayerId] = useState<any>(() => {
 		if (typeof window !== "undefined") {
 			const saved = localStorage.getItem(`poker_playerId_${roomName}`);
 			return saved;
@@ -43,12 +43,12 @@ function PokerRoom() {
 	const navigate = Route.useNavigate();
 
 	useEffect(() => {
-		if (!joined && roomData !== undefined) {
-			joinRoom({ roomName, nickname })
-				.then(({ playerId }) => {
-					setPlayerId(playerId);
+		if (!joined && roomData !== undefined && nickname) {
+			joinRoom({ roomName, nickname, playerId: playerId || undefined })
+				.then(({ playerId: newPlayerId }) => {
+					setPlayerId(newPlayerId);
 					setJoined(true);
-					localStorage.setItem(`poker_playerId_${roomName}`, playerId);
+					localStorage.setItem(`poker_playerId_${roomName}`, newPlayerId);
 				})
 				.catch((err) => {
 					if (err.message.includes("Nickname is already taken")) {
@@ -56,7 +56,7 @@ function PokerRoom() {
 					}
 				});
 		}
-	}, [joined, roomData, roomName, nickname, joinRoom]);
+	}, [joined, roomData, roomName, nickname, joinRoom, playerId]);
 
 	useEffect(() => {
 		if (joinError === "taken") {
@@ -104,10 +104,48 @@ function PokerRoom() {
 		}
 	};
 
+	const handleSetNickname = (e: React.FormEvent<HTMLFormElement>) => {
+		e.preventDefault();
+		const formData = new FormData(e.currentTarget);
+		const newNickname = formData.get("nickname") as string;
+		if (newNickname.trim()) {
+			localStorage.setItem("poker_nickname", newNickname.trim());
+			setNickname(newNickname.trim());
+		}
+	};
+
 	const copyRoomLink = () => {
 		navigator.clipboard.writeText(window.location.href);
 		alert("Room link copied to clipboard!");
 	};
+
+	if (!nickname) {
+		return (
+			<div className="min-h-screen bg-[#1a1c2c] flex items-center justify-center p-4">
+				<div className="bg-[#2a2d3e] p-8 rounded-2xl shadow-2xl w-full max-w-sm border border-gray-700">
+					<h2 className="text-xl font-bold text-white mb-6 text-center">
+						Enter your nickname to join
+					</h2>
+					<form onSubmit={handleSetNickname} className="space-y-4">
+						<input
+							type="text"
+							name="nickname"
+							autoFocus
+							className="w-full bg-[#1a1c2c] text-white rounded-xl border-2 border-gray-700 focus:border-blue-500 focus:ring-0 p-3.5 transition-all outline-none"
+							placeholder="Your name"
+							required
+						/>
+						<button
+							type="submit"
+							className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-500 transition active:scale-95"
+						>
+							Join Room
+						</button>
+					</form>
+				</div>
+			</div>
+		);
+	}
 
 	if (roomData === undefined || !joined) {
 		return (
