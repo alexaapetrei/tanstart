@@ -171,6 +171,30 @@ export const updatePlayerName = mutation({
   },
 });
 
+export const leaveRoom = mutation({
+  args: { playerId: v.id("players") },
+  handler: async (ctx, args) => {
+    const player = await ctx.db.get(args.playerId);
+    if (!player) return;
+
+    const wasGM = player.isGM;
+    const roomId = player.roomId;
+
+    await ctx.db.delete(args.playerId);
+
+    if (wasGM) {
+      const remainingPlayers = await ctx.db
+        .query("players")
+        .withIndex("by_room", (q) => q.eq("roomId", roomId))
+        .collect();
+
+      if (remainingPlayers.length > 0) {
+        await ctx.db.patch(remainingPlayers[0]._id, { isGM: true });
+      }
+    }
+  },
+});
+
 export const heartbeat = mutation({
   args: { playerId: v.id("players") },
   handler: async (ctx, args) => {

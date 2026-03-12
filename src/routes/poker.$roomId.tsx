@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
-import { AlertCircle, Copy, Eye, Info, RefreshCw, Users } from "lucide-react";
+import { AlertCircle, Copy, Eye, Info, LogOut, RefreshCw, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { api } from "../../convex/_generated/api";
@@ -29,6 +29,7 @@ function PokerRoom() {
 	const heartbeatMutation = useMutation(api.poker.heartbeat);
 	const cleanOldPlayersMutation = useMutation(api.poker.cleanOldPlayers);
 	const setMaxFibMutation = useMutation(api.poker.setMaxFib);
+	const leaveRoomMutation = useMutation(api.poker.leaveRoom);
 
 	const [playerId, setPlayerId] = useState<any>(() => {
 		if (typeof window !== "undefined") {
@@ -112,6 +113,14 @@ function PokerRoom() {
 			localStorage.setItem("poker_nickname", newNickname.trim());
 			setNickname(newNickname.trim());
 		}
+	};
+
+	const handleExitRoom = async () => {
+		if (playerId) {
+			await leaveRoomMutation({ playerId: playerId as any });
+		}
+		localStorage.removeItem(`poker_playerId_${roomName}`);
+		navigate({ to: "/" });
 	};
 
 	const copyRoomLink = () => {
@@ -200,6 +209,14 @@ function PokerRoom() {
 				</div>
 
 				<div className="flex items-center space-x-2 shrink-0">
+					<button
+						type="button"
+						onClick={handleExitRoom}
+						title="Exit room"
+						className="p-2 bg-gray-800 hover:bg-red-900/60 rounded-lg text-gray-400 hover:text-red-400 transition border border-gray-700"
+					>
+						<LogOut className="w-4 h-4" />
+					</button>
 					<button
 						type="button"
 						onClick={copyRoomLink}
